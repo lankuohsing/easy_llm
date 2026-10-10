@@ -1,13 +1,13 @@
-# Markdown 编写规范：兼容 GitHub 与 MarkText
+# Markdown 编写规范：兼容 GitHub 与常用预览器
 
-本文记录本仓库目前验证过的 Markdown 兼容规则。目标是在 GitHub 和 MarkText 中获得尽量一致的阅读体验，尤其保证标题、表格、代码和数学公式能够正常显示。
+本文记录本仓库的 Markdown 兼容规则。目标是在 GitHub、MarkText 和 VS Code/Cursor 的标准 Markdown Preview 中获得尽量一致的阅读体验，尤其保证标题、表格、代码和数学公式能够正常显示。下文的格式要求是本仓库采用的保守写法，并非所有 Markdown 解析器的强制语法。Cursor 编辑区内置的 WYSIWYG 预览与标准 Markdown Preview 不同，使用方法见 [AGENTS.md](./AGENTS.md)。
 
 ## 1. 基本原则
 
 1. 优先使用 GitHub Flavored Markdown（GFM）的通用语法。
 2. 不依赖只被某一个编辑器支持的私有扩展。
-3. 数学公式使用 GitHub 和 MarkText 都能识别的 LaTeX 子集。
-4. 写完后分别在 MarkText 和 GitHub 中检查；本地正常不代表 GitHub 一定正常。
+3. 数学公式使用上述预览器都能识别的 LaTeX 子集。
+4. 写完后在使用的本地预览器和 GitHub 中检查；本地正常不代表 GitHub 一定正常。
 5. 标题是文档结构的唯一事实来源，不维护容易过期的手写目录。
 
 ## 2. 标题与文档结构
@@ -52,21 +52,22 @@ Setext 标题容易与公式中的独立 `=`、分隔线等内容产生歧义。
 
 - MarkText：使用 `View → Toggle Table of Contents` 打开侧边栏大纲。
 - GitHub：使用文件页面右上角的 Outline（大纲）按钮。
+- VS Code/Cursor 标准预览：使用 Markdown 大纲或文档标题导航。
 
-两者都会根据标题自动更新，不需要在新增、删除或重命名章节后维护目录。
+这些大纲都会根据标题自动更新，不需要在新增、删除或重命名章节后维护目录。
 
 ### 3.3 谨慎使用手写目录
 
 GitHub 和当前 MarkText 对中文标题生成锚点的算法不同。例如标题：
 
 ```markdown
-## 1. 为什么需要 IC？
+## 1. 为什么需要 SFT？
 ```
 
 可能得到不同锚点：
 
-- GitHub：`#1-为什么需要-ic`
-- 当前 MarkText：可能删除中文，只留下类似 `#1-ic`
+- GitHub：`#1-为什么需要-sft`
+- 当前 MarkText：可能删除中文，只留下类似 `#1-sft`
 
 因此，中文标题的手写目录链接无法保证同时在两端跳转。
 
@@ -89,22 +90,23 @@ GitHub 和当前 MarkText 对中文标题生成锚点的算法不同。例如标
 行内公式使用一对单美元符号：
 
 ```markdown
-因子值记为 $x_{i,t}$，未来收益记为 $r_{i,t\rightarrow t+h}$。
+第 $i$ 条样本的输入记为 $x_i$ ，目标回答记为 $y_i$ 。
 ```
 
 注意事项：
 
 - 起止 `$` 必须成对出现。
 - 不要在 `$` 与公式之间添加多余空格。
+- 行内公式前后的 `$` 不要紧贴中文标点，应与正文保留一个空格。
 - 对复杂变量定义，建议每句话只放一个行内公式，降低解析器产生边界歧义的概率。
 - 如果一行中某个公式没有渲染，先检查其中是否包含 GitHub 不允许的宏，而不要只检查 `$` 是否成对。
 
 推荐：
 
 ```markdown
-其中，$\mathbf{z}_{i,t}$ 表示行业和市值等风险暴露。
+其中， $p_\theta(y_i\mid x_i)$ 表示模型对目标回答的条件概率。
 
-回归残差记为 $\varepsilon_{i,t}$，它是中性化后的因子。
+第 $i$ 条样本的回答长度记为 $T_i$ 。
 ```
 
 不推荐把多个复杂定义挤在同一个长句中。
@@ -127,11 +129,11 @@ $$
 - 公式主体只占一个物理行；
 - `$$` 前后各保留一个空行。
 
-推荐：
+例如 GRPO 的组内奖励均值，推荐写成：
 
 ```markdown
 $$
-r_{i,t\rightarrow t+h}=\frac{P_{i,t+h}}{P_{i,t}}-1
+\bar r=\frac{1}{G}\sum_{j=1}^{G}r_j
 $$
 ```
 
@@ -141,9 +143,9 @@ $$
 
 ```markdown
 $$
-r_{i,t\rightarrow t+h}
+\bar r
 =
-\frac{P_{i,t+h}}{P_{i,t}}-1
+\frac{1}{G}\sum_{j=1}^{G}r_j
 $$
 ```
 
@@ -153,7 +155,7 @@ $$
 
 ```markdown
 $$
-r_{i,t\rightarrow t+h}=\frac{P_{i,t+h}}{P_{i,t}}-1
+\bar r=\frac{1}{G}\sum_{j=1}^{G}r_j
 $$
 ```
 
@@ -163,7 +165,7 @@ $$
 
 ```markdown
 $$
-\begin{aligned} RankIC &=1-\frac{6\times4}{5\times(5^2-1)} \\ &=1-\frac{24}{120} \\ &=0.8 \end{aligned}
+\begin{aligned} \log p_\theta(y_i\mid x_i)&=\log\prod_{t=1}^{T_i}p_\theta(y_{i,t}\mid x_i,y_{i,\lt t}) \\ &=\sum_{t=1}^{T_i}\log p_\theta(y_{i,t}\mid x_i,y_{i,\lt t}) \end{aligned}
 $$
 ```
 
@@ -184,24 +186,22 @@ The following macros are not allowed: operatorname
 不要写：
 
 ```latex
-\operatorname{Corr}(x,r)
-\operatorname{Rank}(x)
-\operatorname{Median}(x)
+D_{\operatorname{KL}}(p\|q)
+\operatorname{softmax}(z)
 ```
 
 改用：
 
 ```latex
-\mathrm{Corr}(x,r)
-\mathrm{Rank}(x)
-\mathrm{Median}(x)
+D_{\mathrm{KL}}(p\|q)
+\mathrm{softmax}(z)
 ```
 
 完整示例：
 
 ```markdown
 $$
-IC_t=\mathrm{Corr}\left(x_{i,t},r_{i,t\rightarrow t+h}\right)
+D_{\mathrm{KL}}(p\|q)=\sum_y p(y)\log\frac{p(y)}{q(y)}
 $$
 ```
 
@@ -212,49 +212,52 @@ $$
 对于拉丁字母向量，不要写：
 
 ```latex
-\boldsymbol{z}_{i,t}
+\boldsymbol{h}_t
 ```
 
 改用：
 
 ```latex
-\mathbf{z}_{i,t}
+\mathbf{h}_t
 ```
 
 对于希腊字母向量，`\mathbf` 通常不会产生预期的粗体效果。若确实需要粗体希腊字母，应先在 GitHub 中验证所选宏；否则优先用正文说明“该符号为向量”，不要为了样式牺牲兼容性。
 
-### 6.3 当前已验证的常用宏
+### 6.3 常用数学宏
 
-本仓库当前已使用并正常工作的常用写法包括：
+本仓库文档可优先使用的常见写法包括：
 
 ```latex
 \frac{a}{b}
 \sqrt{x}
 \sum_{i=1}^{N} x_i
 \bar{x}
-\overline{IC}
-\mathrm{Corr}(x,r)
-\mathbf{z}
+\overline{x}
+D_{\mathrm{KL}}(p\|q)
+\mathbf{h}
+\pi
 \varepsilon
 \alpha
 \beta
+\theta
+\lt
 \rightarrow
 \approx
 \left( \right)
 \begin{aligned} ... \end{aligned}
 ```
 
-这不是 GitHub 支持宏的完整列表，只代表本仓库目前的实际使用经验。新增不常见宏后必须在 GitHub 上验证。
+这不是 GitHub 支持宏的完整列表。新增不常见宏后必须在 GitHub 上验证。
 
 ## 7. 表格
 
 使用标准 GFM 表格，并在表格前后保留空行：
 
 ```markdown
-| 指标 | 含义 |
+| 字段 | 含义 |
 |---|---|
-| IC | 因子值与未来收益的截面相关性 |
-| ICIR | IC 均值与 IC 标准差之比 |
+| prompt | 输入上下文 |
+| response | 目标回答 |
 ```
 
 注意事项：
@@ -269,14 +272,15 @@ $$
 行内代码使用反引号：
 
 ```markdown
-数据列名为 `forward_return`。
+用于回答监督的位置可用 `loss_mask` 标识。
 ```
 
 代码块使用三个反引号并注明语言：
 
 ````markdown
 ```python
-mean_ic = ic_series.mean()
+loss_mask = [0, 0, 1, 1]
+supervised_token_count = sum(loss_mask)
 ```
 ````
 
@@ -336,7 +340,7 @@ The following macros are not allowed: operatorname
 
 原因：GitHub 的数学渲染器使用宏白名单或安全限制。
 
-解决方法：用更基础的宏替换。例如将 `\operatorname{Corr}` 改成 `\mathrm{Corr}`。
+解决方法：用更基础的宏替换。例如将 `D_{\operatorname{KL}}` 改成 `D_{\mathrm{KL}}`。
 
 ### 10.3 MarkText 正常，GitHub 显示公式源码
 
@@ -370,15 +374,18 @@ The following macros are not allowed: operatorname
 - [ ] 没有使用 `[TOC]`；
 - [ ] 没有使用原始 HTML 锚点；
 - [ ] 行内公式的 `$` 成对出现；
+- [ ] 行内公式的 `$` 没有紧贴中文标点；
 - [ ] 行间公式使用三行式；
 - [ ] 每个行间公式的主体只占一个物理行；
 - [ ] 公式中没有独立一行的 `=`；
 - [ ] 没有使用 GitHub 禁止的 `\operatorname`；
+- [ ] 数学环境中没有直接写裸 `<`，需要小于号时使用 `\lt`；
 - [ ] 行内向量优先使用 `\mathbf`，谨慎使用 `\boldsymbol`；
 - [ ] 代码围栏成对，并注明语言；
 - [ ] 表格每行列数一致；
 - [ ] 分隔线前后存在空行；
 - [ ] 在 MarkText 中检查公式、表格和大纲；
+- [ ] 在 VS Code/Cursor 标准 Markdown Preview 中检查公式；
 - [ ] 在 GitHub 中检查公式、表格和大纲；
 - [ ] 执行 `git diff --check`，确保没有多余行尾空格等问题。
 
@@ -395,18 +402,22 @@ The following macros are not allowed: operatorname
 
 ## 2. 核心概念
 
-因子值记为 $x_{i,t}$。
+输入上下文记为 $x_i$ ，目标回答记为 $y_i$ 。
 
-未来收益定义为：
+目标回答的条件概率定义为：
 
 $$
-r_{i,t\rightarrow t+h}=\frac{P_{i,t+h}}{P_{i,t}}-1
+p_\theta(y_i\mid x_i)=\prod_{t=1}^{T_i}p_\theta(y_{i,t}\mid x_i,y_{i,\lt t})
 $$
 
 ## 3. Python 实现
 
 ```python
-forward_return = future_price / current_price - 1
+from math import prod
+
+# 列表中的值依次为模型对各目标 token 给出的条件概率
+token_probabilities = [0.8, 0.6]
+response_probability = prod(token_probabilities)
 ```
 
 ## 4. 小结
@@ -414,4 +425,3 @@ forward_return = future_price / current_price - 1
 - 结论一；
 - 结论二。
 ````
-

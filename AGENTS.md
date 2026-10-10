@@ -2,13 +2,21 @@
 
 ## 项目结构与模块组织
 
-本仓库是一个面向 LLM 后训练的教程项目。每个训练主题应放在独立的顶层目录中：
+本仓库是一个持续建设中的 LLM 学习项目，范围包括预训练、中训练、后训练及相关专题。目前内容主要集中在后训练。顶层目录如下：
 
-- `sft/`：监督微调相关笔记与示例。
-- `dpo/`：Direct Preference Optimization 相关笔记与示例。
-- `opd/`：在线偏好学习、蒸馏等相关材料。
-- `rl/`：强化学习与 RLHF 风格训练材料。
+- `model_architecture/`：模型架构与关键组件专题，目前仅有目录占位。
+- `tokenization/`：分词与 tokenizer 专题，已有主流方法、发展历程与工程核查教程。
+- `pretrain/`：预训练专题，已有 Pile 原始数据来源说明。
+- `midtrain/`：中训练与继续预训练专题，目前仅有目录占位。
+- `sft/`：监督微调基础理论与实验规划。
+- `dpo/`：Direct Preference Optimization 基础理论。
+- `opd/`：在线策略蒸馏相关材料，目前只有占位入口。
+- `rl/`：强化学习方法，目前包含 PPO 和 GRPO 基础理论。
+- `evaluation/`：模型评测专题，目前仅有目录占位。
+- `inference/`：模型推理与部署专题，目前仅有目录占位。
 - `utils/`：通用辅助脚本，目前包含 `utils/dataset_utils/`。
+
+预留目录目前仅包含 `.gitkeep`；开始撰写专题内容时再添加 `readme.md`，说明主题范围。其他新方向在有实际材料时再建目录。现有后训练目录不因项目范围扩大而整体迁移，以免打断已有链接。
 
 目录和文件名优先使用小写。主题入口文档优先使用 `readme.md`，除非后续全仓库统一改为 `README.md`。
 
@@ -49,7 +57,7 @@ pytest
 
 ## 提交与 Pull Request 规范
 
-当前 Git 历史只有初始提交，后续请使用清晰的约定式提交信息，例如 `docs: expand sft tutorial` 或 `feat: add dataset loader utility`。
+请使用清晰的约定式提交信息，例如 `docs: expand sft tutorial` 或 `feat: add dataset loader utility`。
 
 Pull Request 应包含简短摘要、变更目录、已运行命令，以及刻意排除在 Git 之外的生成产物说明。如有关联 issue，请一并链接。不要提交模型权重、checkpoint、本地数据集、缓存、日志或私密凭据。
 

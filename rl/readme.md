@@ -1,3 +1,8 @@
-# Reinforce Learning（RL）
+# 强化学习（Reinforcement Learning，RL）
 
-（本目录下可以再细分各种RL方法，PPO，GRPO，DAPO，等等）
+本目录记录用于 LLM 训练的强化学习方法。目前已有：
+
+- [PPO 基础理论](./ppo基础理论.md)：奖励、价值模型、优势估计、裁剪目标与训练流程。
+- [GRPO 基础理论](./grpo基础理论.md)：组相对优势、裁剪目标、训练流程及与 PPO 的比较。
+
+DAPO 等方法和可运行训练示例将在有实际内容时补充。

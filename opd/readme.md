@@ -1,3 +1,3 @@
-# On-Policy Distillation (OPD)
+# 在线策略蒸馏（On-Policy Distillation，OPD）
 
-（本目录下可以再细分各种opd范式，opsd,mopd等）
+本目录计划记录从当前策略采样数据、再利用教师模型反馈进行蒸馏的相关方法。目前尚无正文或训练示例；具体方法分类会在补充材料时确定。
