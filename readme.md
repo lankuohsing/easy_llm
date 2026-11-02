@@ -18,7 +18,7 @@
 | 直接偏好优化（DPO） | [dpo/](./dpo/00_readme.md) | 基础理论 |
 | 在线策略蒸馏（OPD） | [opd/](./opd/00_readme.md) | 目录占位，内容待补充 |
 | 强化学习（RL） | [rl/](./rl/00_readme.md) | RL 基础 → PPO → GRPO 的完整推导、手算与 CPU 数值核验；另有奖励机制和熵专题选读 |
-| 面试准备 | [interview/](./interview/00_readme.md) | 跨专题分层题库、模拟面试选题与材料缺口索引；预训练专项沿用已有清单 |
+| 面试准备 | [interview/](./interview/00_readme.md) | 按 L1 校招/初级 → L4 技术负责人区分起问档与回答深度，包含模拟选题和材料索引；预训练专项沿用已有清单 |
 | 通用工具 | [utils/dataset_utils/](./utils/dataset_utils/) | 数据集下载与读取示例 |
 
 ## 待补充的目录
