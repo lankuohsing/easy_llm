@@ -1,24 +1,30 @@
 # PPO（Proximal Policy Optimization）基础理论
 
-监督微调（SFT）通过模仿参考答案来训练模型，但很多目标很难用唯一的“标准答案”表达。例如，同一个问题可能有多个正确回答，而我们更偏好其中更有帮助、更安全或格式更规范的一个。强化学习允许模型先生成回答，再根据奖励信号调整生成策略。PPO（Proximal Policy Optimization，近端策略优化）是经典 RLHF 流程中最常用的策略优化算法之一。本章从大语言模型的视角解释 PPO 的训练对象、核心公式、完整训练过程，以及实践中容易混淆的概念。
+PPO（Proximal Policy Optimization，近端策略优化）是一种策略优化算法：让 agent 用当前策略与环境交互，根据奖励判断哪些动作值得强化，再以相对保守的步幅更新策略。它既可以训练游戏或控制任务中的策略，也可以训练语言模型的生成策略。
 
-## 1. PPO 在 LLM 后训练中的位置
+建议先阅读 [RL 基础理论](./01_rl基础理论.md)，掌握状态、动作、回报、价值函数、优势和策略梯度，再进入本章。这里先解释 PPO 如何把策略梯度变成一套可反复采样和更新的算法，然后用 LLM 逐 token 生成作为贯穿示例；无需先学习预训练或 SFT 的训练方法。
 
-经典的 RLHF 训练流程可以简化为：
+## 1. PPO 在强化学习中的作用
+
+### 1.1 从“提高好动作的概率”到“控制更新幅度”
+
+策略梯度告诉我们：提高正优势动作的概率，降低负优势动作的概率。但一次梯度更新如果改得太多，之前采集的轨迹就可能无法代表新策略的行为，价值估计和优势信号也会变得不可靠。
+
+PPO 的主要做法是先冻结采样时的旧策略，再用新旧策略的动作概率比和裁剪目标控制更新激励。它允许一批轨迹被有限次复用，同时避免持续奖励过大的有利方向变化。这里的“近端”指策略更新尽量留在采样旧策略附近，并不是空间距离或任务步骤的远近。
+
+先记住训练主线，后面的公式都围绕这条主线展开：
 
 ```text
-预训练模型
-  ↓ SFT
-初始策略模型
-  ↓ 收集并标注回答偏好
-奖励模型
-  ↓ PPO：采样回答 → 计算奖励 → 更新策略
-经过偏好优化的模型
+旧策略采样轨迹 → 计算奖励和优势 → 用裁剪目标更新策略
+       ↑                                      ↓
+       └──────── 同步旧策略并重新采样 ──────────┘
 ```
 
-PPO 只负责最后一段“如何根据奖励更新策略”。奖励可以来自人工偏好训练出的奖励模型，也可以来自单元测试、数学答案校验器、格式检查器或多个信号的组合。因此，**PPO 是策略优化算法，不等同于 RLHF，也不要求奖励一定来自人类偏好。**
+### 1.2 在语言模型中的应用
 
-在标准 RLHF-PPO 中，SFT 模型通常有两个作用：
+很多语言任务很难用唯一的“标准答案”表达。例如，同一个问题可能有多个正确回答，而我们更偏好其中更有帮助或格式更规范的一个。可以让模型先生成回答，再用 PPO 根据奖励调整生成策略。奖励可以来自人工偏好训练出的奖励模型，也可以来自单元测试、数学答案校验器、格式检查器或多个信号的组合。因此，**PPO 是策略优化算法，不等同于 RLHF，也不要求奖励一定来自人类偏好。**
+
+经典 RLHF-PPO 常从已经完成监督微调（SFT）的模型开始。只需把它理解为“已有基本回答能力的初始策略”，它通常有两个作用：
 
 - 初始化待训练的策略，使探索从一个已经能够正常对话的模型开始；
 - 作为冻结的参考策略，约束训练后的模型不要偏离初始行为太远。
@@ -112,13 +118,13 @@ $$
 
 然后在回答最后一个有效位置再加上任务奖励。这里使用 $\pi_{\mathrm{old}}$ 是因为当前 rollout 由旧策略生成；不同实现也可能直接在优化目标中加入 KL 项，具体公式和日志含义需要结合框架确认。
 
-> **PPO clipping 与参考模型 KL 不是同一个约束。** 前者限制当前更新相对采样旧策略的变化，后者限制整个训练过程相对参考模型的漂移。只启用其中一个，不能自动得到另一个的效果。
+> **PPO clipping 与参考模型 KL 不是同一个约束。** 前者削弱当前策略相对采样旧策略改得过多的收益，后者惩罚整个训练过程相对参考模型的漂移。二者都是优化中的控制手段，不能理解成必然满足的硬距离界；只启用其中一个，也不能自动得到另一个的效果。
 
 ## 5. 价值模型、回报与优势
 
 ### 5.1 回报
 
-设经过任务奖励和 KL 惩罚整形后的 token 奖励为 $r_t$ ，折扣因子为 $\gamma$ ，则从位置 $t$ 开始的累计回报为：
+设经过任务奖励和 KL 惩罚整形后的 token 奖励为 $r_t$ ，折扣因子为 $\gamma$ 。对于在位置 $T$ 真正结束的完整轨迹，从位置 $t$ 开始的累计回报为：
 
 $$
 R_t=\sum_{k=t}^{T}\gamma^{k-t}r_k
@@ -140,10 +146,10 @@ $$
 
 ### 5.3 GAE 优势估计
 
-PPO 常用广义优势估计（Generalized Advantage Estimation，GAE）。先定义一步时序差分残差：
+PPO 常用广义优势估计（Generalized Advantage Estimation，GAE）。先定义一步时序差分残差，其中 $\chi_t=1$ 表示执行动作 $a_t$ 后任务真正终止，否则 $\chi_t=0$ ：
 
 $$
-\delta_t=r_t+\gamma V_\psi(s_{t+1})-V_\psi(s_t)
+\delta_t=r_t+\gamma(1-\chi_t)V_\psi(s_{t+1})-V_\psi(s_t)
 $$
 
 再将未来残差加权累积：
@@ -152,7 +158,20 @@ $$
 \hat A_t=\sum_{l=0}^{T-t}(\gamma\lambda)^l\delta_{t+l}
 $$
 
-其中， $\lambda\in[0,1]$ 控制偏差与方差的权衡。 $\lambda$ 较小，更依赖价值模型的一步预测，方差较低但价值误差带来的偏差可能更大； $\lambda$ 较大，更接近完整轨迹回报，偏差较小但方差通常更高。终止状态之后的价值应设为 0，并且 padding 位置不能进入递推。
+其中， $\lambda\in[0,1]$ 控制偏差与方差的权衡。 $\lambda$ 较小，更依赖价值模型的一步预测，方差较低但价值误差带来的偏差可能更大； $\lambda$ 较大，更接近完整轨迹回报，完整轨迹上的 bootstrap 偏差较小，但方差通常更高。上式只在同一条有效轨迹内累加，不能越过回答边界或进入 padding。
+
+这里必须区分两种“结束”：
+
+- **任务真正终止**：例如生成结束 token，或者任务把长度上限明确规定为 episode 的结束。此时终止后的未来回报为 0，最后一步取 $\chi_T=1$ ，不从下一个状态 bootstrap。
+- **采集片段被截断**：例如为了分批采样，只收集了某个仍可继续的任务的前 $T$ 步。此时取 $\chi_T=0$ ，最后一个 TD 残差保留下一个状态的价值，用它估计未采集的未来回报；GAE 的累加仍停在片段边界。
+
+bootstrap 就是“用价值预测补上尚未采集到的未来”。对于第二种情况，截断片段的回报估计可以写成：
+
+$$
+\hat R_t^{\mathrm{bootstrap}}=\sum_{k=t}^{T}\gamma^{k-t}r_k+\gamma^{T-t+1}V_\psi(s_{T+1})
+$$
+
+不能仅凭“触及 `max_new_tokens`”就决定是否补未来价值：如果任务把超长回答视为结束并判罚，它属于第一种情况；如果只因采集预算停止一个本来仍会继续的 episode，它属于第二种情况。错误地把后者的未来价值清零，会让模型把“暂时没有采集到奖励”误学成“未来没有奖励”。
 
 价值模型通常用回报目标 $\hat R_t$ 做回归：
 
@@ -160,19 +179,37 @@ $$
 \mathcal{L}_{V}(\psi)=\mathbb{E}_t\left[\left(V_\psi(s_t)-\hat R_t\right)^2\right]
 $$
 
-常见实现会进一步裁剪价值更新，以减少 critic 在一个批次内变化过大。
+采用 GAE 时，常用回报目标为：
+
+$$
+\hat R_t=\hat A_t+V_{\mathrm{old}}(s_t)
+$$
+
+其中， $V_{\mathrm{old}}$ 表示采样时价值模型给出的冻结预测。这一目标通常称为 lambda-return，并不总等于完整的 Monte Carlo 回报。优势和回报目标在本轮 minibatch 更新中保持固定。常见实现会进一步裁剪价值更新，以减少 critic 在一个批次内变化过大。
 
 ## 6. PPO 的裁剪策略目标
 
-### 6.1 新旧策略概率比
+### 6.1 从策略梯度到新旧策略概率比
 
-rollout 来自固定的旧策略，但参数更新发生在当前策略上。PPO 使用动作概率比衡量当前策略相对旧策略的变化：
+最直接的策略梯度根据采样动作的 log probability 和优势更新策略。但 PPO 希望对一批 rollout 做有限次 minibatch 更新：采样只发生一次，当前策略却持续变化，旧样本中的动作频率就不再等于当前策略的动作概率。
+
+为处理这个差异，PPO 使用动作概率比衡量当前策略相对旧策略的变化：
 
 $$
 \rho_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\mathrm{old}}(a_t\mid s_t)}=\exp\left(\log\pi_\theta(a_t\mid s_t)-\log\pi_{\mathrm{old}}(a_t\mid s_t)\right)
 $$
 
-刚开始更新时，当前策略与旧策略相同，因此 $\rho_t(\theta)\approx1$ 。随着同一批数据被训练多个 minibatch epoch，二者逐渐产生差异。
+刚开始更新时，当前策略与旧策略相同，因此 $\rho_t(\theta)=1$ 。随着同一批数据被训练多个 minibatch epoch，二者逐渐产生差异。例如旧策略给已采样动作的概率是 0.2，新策略给出 0.3，那么概率比是 1.5，表示该动作在新策略下比采样时更常出现。
+
+概率比来自**重要性采样**的思想：在固定状态 $s_t$ 上，把旧策略抽到的动作按新旧概率比加权，可以校正动作分布变化。要求旧策略在新策略可能选择的动作上也有非零概率。未裁剪的代理目标是：
+
+$$
+\mathcal{L}_{\mathrm{surrogate}}(\theta)=\mathbb{E}_{(s_t,a_t)\sim\pi_{\mathrm{old}}}\left[\rho_t(\theta)\hat A_t\right]
+$$
+
+在新旧策略相同的起点，对这个目标求梯度，会得到以旧策略样本和优势估计表达的策略梯度方向。这里仍使用旧策略采集的状态和旧策略下估计的优势；单步动作概率比没有把整个轨迹的状态分布也变成当前策略的分布，所以它是旧策略附近的**代理目标**，不是任意大幅更新后真实回报的精确表达式。
+
+旧 log probability 必须保留采样时的值，优势与回报目标也应固定。如果每次更新都把分母改成当前模型，概率比会被错误地重置为 1，PPO 就失去了衡量策略变化的参照。
 
 ### 6.2 裁剪代理目标
 
@@ -189,9 +226,25 @@ $$
 
 取两个分支的较小值，是为了构造一个保守目标，削弱“朝有利方向一次改得过头”的激励。PPO 因此比直接使用未裁剪策略梯度更稳定，也比带硬约束的 TRPO 更容易实现。
 
-需要注意，clipping 并不保证更新后策略的真实 KL 一定低于某个阈值。未采样动作、共享参数引起的联动，以及多次梯度更新都可能让实际策略变化超出直觉范围。因此仍应监控新旧策略 KL、clip fraction 和概率比异常值，必要时提前停止当前批次的更新。
+需要注意，clipping 裁剪的是代理目标的一个分支，**没有把模型概率或实际概率比强制限制在裁剪区间内**，也不保证更新后策略的真实 KL 一定低于某个阈值。未采样动作、共享参数引起的联动，以及多次梯度更新都可能让实际策略变化超出直觉范围。因此仍应监控新旧策略 KL、clip fraction 和概率比异常值，必要时提前停止当前批次的更新。
 
-### 6.3 总训练损失
+### 6.3 手算一次 clipping
+
+设 $\varepsilon=0.2$ ，因此裁剪区间是 $[0.8,1.2]$ 。每一行代表一个采样动作在某次更新后的情况：
+
+| 优势 | 概率比 | 未裁剪项：概率比 × 优势 | 裁剪项：裁剪后概率比 × 优势 | 取较小值后的目标 |
+| --- | --- | --- | --- | --- |
+| 2 | 1.1 | 2.2 | 2.2 | 2.2 |
+| 2 | 1.5 | 3.0 | 2.4 | 2.4 |
+| -2 | 0.9 | -1.8 | -1.8 | -1.8 |
+| -2 | 0.5 | -1.0 | -1.6 | -1.6 |
+| -2 | 1.5 | -3.0 | -2.4 | -3.0 |
+
+正优势动作的概率比从 1.2 增到 1.5，或者负优势动作的概率比从 0.8 降到 0.5，都不会继续改善该样本的目标值。最后一行则是“负优势动作反而更常被选择”，目标仍保留 -3.0，继续惩罚这次错误方向的变化。因此 clipping 不是把所有超界变化一律屏蔽。
+
+这些数值是需要**最大化**的代理目标；代码里的 policy loss 通常取其相反数并最小化。若把表格中的负值误当成“越负越好的 loss”，会把学习方向颠倒。
+
+### 6.4 总训练损失
 
 将策略目标、价值损失和可选的熵奖励组合，可以写成：
 
@@ -226,40 +279,58 @@ $$
 ```python
 for prompts in prompt_dataloader:
     with no_grad():
-        responses = old_policy.generate(prompts)
+        responses, response_mask, terminated = old_policy.generate(prompts)
         old_log_probs = old_policy.log_probs(prompts, responses)
         ref_log_probs = reference_policy.log_probs(prompts, responses)
         task_rewards = reward_fn(prompts, responses)
         old_values = value_model.values(prompts, responses)
+        bootstrap_values = value_model.bootstrap_values(
+            prompts, responses, terminated
+        )
 
         token_rewards = build_rewards(
             task_rewards=task_rewards,
             old_log_probs=old_log_probs,
             ref_log_probs=ref_log_probs,
         )
-        advantages, returns = compute_gae(token_rewards, old_values)
+        advantages, returns = compute_gae(
+            token_rewards,
+            old_values,
+            bootstrap_values=bootstrap_values,
+            terminated=terminated,
+            response_mask=response_mask,
+        )
 
-    for minibatch in repeat_and_shuffle(responses):
+    rollout = pack_rollout(
+        prompts, responses, old_log_probs, old_values,
+        advantages, returns, response_mask
+    )
+    for minibatch in repeat_and_shuffle(rollout):
         new_log_probs = policy.log_probs(minibatch)
         new_values = value_model.values(minibatch)
 
         ratio = (new_log_probs - minibatch.old_log_probs).exp()
-        policy_loss = clipped_policy_loss(ratio, minibatch.advantages)
-        value_loss = clipped_value_loss(new_values, minibatch.returns)
+        policy_loss = clipped_policy_loss(
+            ratio, minibatch.advantages, response_mask=minibatch.response_mask
+        )
+        value_loss = clipped_value_loss(
+            new_values, minibatch.returns, minibatch.old_values,
+            response_mask=minibatch.response_mask
+        )
 
         optimize(policy_loss + value_coefficient * value_loss)
 
     old_policy.load_state_dict(policy.state_dict())
 ```
 
-伪代码省略了 attention mask、response mask、分布式通信、梯度累积和数值稳定处理。真实实现中，所有逐 token 张量必须只在有效回答位置参与计算。
+这里的函数是框架无关的流程占位，并非可直接运行的 API。`bootstrap_values` 对真正终止的回答应为 0，对仅被采集预算截断的片段应取最后动作之后状态的价值。伪代码展示了 response mask 和终止信息的传递，省略了其内部实现、attention mask、分布式通信、梯度累积和数值稳定处理。真实实现中，所有逐 token 张量必须只在有效回答位置参与计算。
 
 ## 8. 为什么 PPO 有效，又为什么训练成本高
 
 PPO 适合 LLM 后训练，主要因为：
 
 1. **直接优化生成结果**：奖励可以评价完整回答，而不要求每个输入只有一个参考答案。
-2. **更新相对保守**：旧策略 clipping 和参考模型 KL 共同抑制策略突然崩坏。
+2. **更新相对保守**：PPO clipping 抑制过大的有利方向更新；在 LLM RLHF 中，还常用参考模型 KL 控制长期漂移。
 3. **优势估计较稳定**：critic 为不同状态提供基线，降低长序列策略梯度的方差。
 4. **能够复用一批 rollout**：同一批 on-policy 数据可以做有限次 minibatch 更新，提高采样利用率。
 
@@ -289,6 +360,8 @@ PPO 允许对同一批 rollout 做有限次更新，但不意味着可以长期�
 ### 9.4 生成配置也是训练配置
 
 温度、top-p、最大回答长度和停止条件决定策略探索到什么数据。采样过于确定，回答缺乏多样性；采样过于随机，奖励噪声和无效回答增多。训练时与评测时可以使用不同的解码配置，但必须分别记录，不能把解码变化误认为模型能力变化。
+
+概率比还要求分母描述实际采样策略。温度缩放和 top-p 过滤会改变采样分布，不能在数学上自动把过滤前的原始 softmax 概率当成过滤后策略的精确概率。落地时应核对框架如何定义 sampling policy 和计算 log probability，尤其避免新旧策略使用不一致的温度或过滤规则。
 
 ## 10. 常见问题与排查方向
 
@@ -321,7 +394,7 @@ PPO 允许对同一批 rollout 做有限次更新，但不意味着可以长期�
 
 PPO 的 critic 能利用每个状态的信息建立基线，但训练一个与策略规模接近的价值模型代价很高，而且价值估计本身可能不稳定。对于数学、代码等可以为同一个 prompt 批量采样多个回答并自动判分的任务，可以不用单独的 critic，而把同组回答的平均奖励作为基线。这正是 GRPO 的核心思路。
 
-GRPO 保留了“旧策略采样、概率比、clipping、参考模型 KL”等 PPO 家族特征，却用组内相对奖励替代学习得到的价值函数。它减少了显存和训练复杂度，但会引入组内采样成本以及新的方差和偏差问题，详见 [GRPO 基础理论](./grpo基础理论.md)。
+GRPO 保留了“旧策略采样、概率比、clipping、参考模型 KL”等 PPO 家族特征，却用组内相对奖励替代学习得到的价值函数。它减少了显存和训练复杂度，但会引入组内采样成本以及新的方差和偏差问题，详见 [GRPO 基础理论](./03_grpo基础理论.md)。
 
 ## 13. 本章小结
 
@@ -330,6 +403,19 @@ GRPO 保留了“旧策略采样、概率比、clipping、参考模型 KL”等 
 - 旧策略用于约束一次 rollout 上的更新，参考策略用于限制相对初始模型的长期漂移，二者不能混淆。
 - KL 约束、PPO clipping、奖励尺度、response mask 和 on-policy 数据共同影响训练稳定性。
 - PPO 能直接优化不可微的序列级目标，但需要维护多个模型、在线生成数据，并谨慎防范 reward hacking。
+
+## 14. 学完后自检
+
+进入 [GRPO 基础理论](./03_grpo基础理论.md) 前，先尝试不看公式回答这些问题：
+
+1. 旧策略和参考策略分别在什么时候同步？它们为什么不能混用？
+2. 为什么 PPO 要保留采样时的 log probability，而不能每次更新后重新计算分母？
+3. 对正优势动作，概率比从 1.2 增到 1.5 时，裁剪目标还能增加吗？实际概率比能否达到 1.5？
+4. 为什么完整回答只在最后获得奖励，前面的 token 仍可以获得学习信号？
+5. 一个任务尚未结束，只因为采样片段用完而停止，最后一步是否应该把未来价值清零？
+6. PPO 的价值模型提供了什么基线？如果不训练它，要从哪里得到比较动作好坏的参照？
+
+第 3 题的答案是“不能增加，但实际概率比可以达到 1.5”；第 5 题的答案是“不应清零，应 bootstrap”。如果能解释其余问题，就已经掌握学习 GRPO 所需的 PPO 主线。
 
 ## 参考文献
 

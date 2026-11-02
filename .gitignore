@@ -114,5 +114,6 @@ trace/
 !**/.gitkeep
 !**/README.md
 !**/readme.md
+!**/00_readme.md
 !**/*.example
 !**/*.sample
