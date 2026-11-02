@@ -68,6 +68,8 @@ $$
 
 同一个 prompt 下的 $G$ 个回答构成一个组。GRPO 使用这组回答的奖励均值作为局部基线，判断某个回答相对同组平均水平更好还是更差。
 
+这里的“独立采样”是指在相同提示词和生成配置下，用随机采样产生候选回答，并不要求它们内容不同。贪心解码得到的重复回答通常不能提供组内奖励差异。公式暂把 $\pi_{\mathrm{old}}$ 视为实际用于生成的行为分布；温度和 top-p 如何改变这个分布，以及保存哪种 log probability，见 9.2 节。
+
 ### 2.3 符号约定
 
 本文使用的核心符号如下。后续公式中的符号均以此表为准：
@@ -89,6 +91,7 @@ $$
 | $s_{i,t}$ | 生成第 $i$ 个回答的第 $t$ 个 token 前的状态，即 $(x,y_{i,\lt t})$ |
 | $a_{i,t}$ | 状态 $s_{i,t}$ 下实际采样的动作，即 token $y_{i,t}$ |
 | $\theta$ | 当前策略中参与训练的参数 |
+| $\phi$ | 使用神经网络奖励模型时的参数；不属于当前策略参数 |
 | $\pi_\theta$ | 当前策略，即正在接受梯度更新的语言模型 |
 | $\pi_{\mathrm{old}}$ | 生成当前批次回答的旧策略快照，在这批数据的更新期间保持冻结 |
 | $\pi_{\mathrm{ref}}$ | 冻结的参考策略，用于计算 KL 惩罚并约束长期行为漂移 |
@@ -115,8 +118,8 @@ GRPO 中常见的训练角色如下：
 | --- | --- | --- | --- |
 | 当前策略 | $\pi_\theta$ | 是 | 计算新概率并接受梯度更新，也是最终要得到的模型 |
 | 旧策略 | $\pi_{\mathrm{old}}$ | 一轮更新期间冻结 | 生成当前组回答，并作为策略概率比的分母 |
-| 参考策略 | $\pi_{\mathrm{ref}}$ | 否 | 提供 KL 约束，抑制策略长期漂移 |
-| 奖励函数 | $r(x,y)$ | GRPO 阶段通常固定 | 为每个完整回答或中间步骤打分 |
+| 参考策略 | $\pi_{\mathrm{ref}}$ | 本训练阶段冻结 | 提供 KL 约束，抑制策略长期漂移 |
+| 奖励函数 | $r(x,y)$ 或 $r_\phi(x,y)$ | 本轮策略更新期间固定 | 为每个完整回答或中间步骤打分 |
 | 价值模型 | 无 | 不需要 | GRPO 使用组内奖励基线，不训练 critic |
 
 当前策略由一个选定的初始模型开始。在很多 LLM 后训练配置中，它已经经过 SFT；在可验证奖励训练中，也有直接从基座模型开始的实例。因此，SFT 初始化是常见配置，并非 GRPO 的算法前提，本章也不要求先学习 SFT。训练开始时，可以复制初始模型得到冻结的参考策略；每轮 rollout 时，再把采样所用策略视为旧策略。之后当前策略会在同一批回答上做若干次梯度更新，而旧策略在这期间不变。进入下一轮 rollout 时，再使用更新后的策略重新采样。
@@ -127,6 +130,8 @@ GRPO 中常见的训练角色如下：
 - $\pi_{\mathrm{ref}}$ 描述“训练后的策略不应偏离哪个行为锚点太远”，通常在整个 GRPO 阶段保持冻结。
 
 奖励函数 $r(x,y)$ 可以是神经网络奖励模型，也可以是答案校验器、单元测试、格式检查器或多个信号的加权组合。**GRPO 不需要 critic，不等于 GRPO 不需要奖励。** DeepSeek-R1-Zero 在可验证推理任务中主要使用准确性奖励和格式奖励，但 GRPO 本身并不限定奖励来源。
+
+如果奖励来自参数为 $\phi$ 的模型，可写成 $r_\phi(x,y)$ 。它评价已经完成的回答或步骤；PPO 的 $V_\psi(s_t)$ 则预测从状态继续行动的期望回报，两者承担不同角色。本章示例在一个策略训练阶段内固定奖励与参考模型。DeepSeekMath 的 4.1.4 节和算法 1 还讨论了阶段间重训奖励模型、重新设置参考模型的配方；因此，“参考策略不变”应注明所指阶段，不能视为所有 GRPO 配方的永久要求。
 
 ## 3. 组相对优势是如何得到的
 
@@ -164,7 +169,7 @@ $$
 \hat A_i=\frac{r_i-\bar r}{\sigma_r+\epsilon_{\mathrm{std}}}
 $$
 
-其中， $\epsilon_{\mathrm{std}}$ 是防止除零的小常数。不同实现可能采用样本标准差、总体标准差或不除以标准差，公式细节会影响奖励尺度，复现实验时必须检查具体代码。
+其中， $\epsilon_{\mathrm{std}}$ 是防止除零的小常数。DeepSeekMath 的结果监督公式写成直接除以组标准差；本文额外写出稳定常数，便于说明实现中的除零保护。本章标准差采用前式的总体标准差，不同实现可能采用样本标准差或不除以标准差，公式细节会影响奖励尺度，复现实验时必须检查具体代码。
 
 对第 $i$ 个回答，组均值 $\bar r$ 包含它自己的奖励 $r_i$ ，因而不是严格独立于该回答的基线。若 $G\gt1$ ，把其他回答的奖励均值记为 $\bar r_{-i}$ ，则有：
 
@@ -172,7 +177,9 @@ $$
 \bar r_{-i}=\frac{1}{G-1}\sum_{j\ne i}r_j,\qquad r_i-\bar r=\frac{G-1}{G}\left(r_i-\bar r_{-i}\right)
 $$
 
-在同一 prompt 下独立采样时，其他回答可以提供不依赖当前回答的比较基线；含自身的组中心化在未标准化时，相比上述比较多了一个缩放因子。再除以由整组奖励决定的随机标准差，会进一步改变不同组的权重。因此， $\hat A_i$ 是实用的组相对更新信号，不应直接等同于 RL 基础中的真实优势函数，或宣称它是原始期望奖励策略梯度的严格无偏估计。
+在同一 prompt 下独立采样时，其他回答可以提供不依赖当前回答的比较基线。若只考虑固定组大小、未裁剪、不除以标准差也不做长度归一化的完整序列策略梯度，含自身的组中心化会使梯度期望相对原始奖励梯度缩小为 $(G-1)/G$ 。在这些条件下它只是固定缩放，不能因此推断实际 GRPO 目标仍是严格无偏的原始奖励梯度。
+
+实际目标还会除以由整组奖励决定的随机标准差，并可能按回答长度加权；这些权重与采样回答相关，会改变梯度的语义。因此， $\hat A_i$ 是实用的组相对更新信号，不应直接等同于 RL 基础中的真实优势函数，或宣称它是原始期望奖励策略梯度的严格无偏估计。
 
 减去组均值后：
 
@@ -196,6 +203,8 @@ $$
 
 两个正确回答中的 token 得到正的任务优势，两个错误回答中的 token 得到负的任务优势，策略代理目标据此倾向于提高前者、降低后者的概率。实际参数更新还受 clipping、KL 和同批其他样本影响。GRPO 不需要 critic 预测“这个问题通常能得多少分”，因为同组的其他回答已经提供了局部比较基线。
 
+如果只有一个回答正确，奖励组变成 `[1, 0, 0, 0]` ，组均值为 0.25，总体标准差约为 0.433，标准化优势约为 `[1.732, -0.577, -0.577, -0.577]` 。正确回答的绝对奖励仍然是 1，但优势大小变了。这说明组标准化不仅比较正误，也会改变不同组中成功和失败样本的更新权重。
+
 ### 3.3 为什么所有奖励相同时没有任务学习信号
 
 如果同组回答的奖励完全相同，则每个 $r_i-\bar r$ 都等于 0，所有优势也都等于 0。只使用二元正确性奖励时，同组全部正确或全部错误就属于这种情况。即使分母加入了 $\epsilon_{\mathrm{std}}$ ，也只能避免数值除零，不能凭空产生任务奖励对应的策略梯度；若启用参考 KL 惩罚，该项仍可能推动策略更新。
@@ -210,13 +219,29 @@ $$
 
 ## 4. 从序列优势到 token 更新
 
+先回到 RL 基础中的策略梯度。完整回答的概率是 token 概率的乘积，因此其 log probability 与梯度都可以按 token 相加：
+
+$$
+\log\pi_\theta(y_i\mid x)=\sum_{t=1}^{T_i}\log\pi_\theta(a_{i,t}\mid s_{i,t}),\qquad \nabla_\theta\log\pi_\theta(y_i\mid x)=\sum_{t=1}^{T_i}\nabla_\theta\log\pi_\theta(a_{i,t}\mid s_{i,t})
+$$
+
+在固定 prompt、不对终局奖励折扣且暂不加 KL 的情况下，期望序列奖励的策略梯度为：
+
+$$
+\nabla_\theta\mathbb{E}_{y\sim\pi_\theta(\cdot\mid x)}[r(x,y)]=\mathbb{E}_{y\sim\pi_\theta(\cdot\mid x)}\left[r(x,y)\sum_{t=1}^{T}\nabla_\theta\log\pi_\theta(a_t\mid s_t)\right]
+$$
+
+这解释了为什么一个终局分数能通过每个已采样 token 的 log probability 更新整条回答。它是对生成路径施加权重，不代表已经识别出哪些 token 导致成功。
+
 使用结果奖励（outcome reward）时，一个回答通常只有一个标量优势 $\hat A_i$ 。最直接的做法是把它赋给该回答的所有有效 token：
 
 $$
 \hat A_{i,t}=\hat A_i,\qquad t\in\{1,\ldots,T_i\}
 $$
 
-把最终结果转化为各个 token 的学习信号，称为信用分配（credit assignment）。上式意味着只要最终答案相对同组更好，整条生成路径都会受到正向强化；只要最终答案相对同组更差，整条路径都会受到负向强化。优点是实现简单，不需要逐步标注；缺点是信用分配粗糙，正确答案中的无效绕路和错误答案中的合理步骤也会得到相同符号的信号。
+把最终结果转化为各个 token 的学习信号，称为信用分配（credit assignment）。上式把同一个组相对权重广播给该回答的所有有效 token，不需要逐步标注；但正确答案中的无效绕路和错误答案中的合理步骤也会得到相同符号的任务信号。它不是逐状态估计的 $A^\pi(s_{i,t},a_{i,t})$ ：不同前缀的未来成功概率本来就可能不同，广播同一个数无法表达这种差异。实际概率变化还受裁剪、KL 和共享参数影响。
+
+因此，从完整序列的 log probability 到下一节的 token 目标，有两层选择：先用组相对优势替换原始奖励作为更新权重，再用 token 概率比和裁剪构造旧策略附近的代理目标。不能把这些选择当作对原始期望奖励目标的恒等改写。
 
 若奖励函数能够对中间推理步骤打分，可以构造过程奖励（process reward），再根据当前位置之后的步骤奖励计算 token 或步骤级优势。DeepSeekMath 讨论了 outcome supervision 和 process supervision 两种形式。无论采用哪一种，都必须保证步骤边界、奖励位置和 response mask 对齐。
 
@@ -246,6 +271,8 @@ $$
 
 rollout 刚生成时，当前策略与旧策略通常相同，因此概率比接近 1。对同一批回答进行多次梯度更新后，当前策略逐渐偏离旧策略。使用这个比值，可以在回答来自旧策略的情况下，估计当前策略应如何更新；但偏离过大时估计会变得不可靠，因此还需要 clipping。
 
+例如，旧策略为某个已采样 token 给出的概率是 0.2，当前策略给出 0.3，概率比就是 1.5。这个单步比值可以在固定状态上校正动作分布变化，却没有把旧回答的前缀分布也变成当前策略的前缀分布。完整序列的概率比是所有 token 比值的乘积；基础 GRPO 使用的则是逐 token 代理目标，并非用完整轨迹重要性采样精确表达任意更新后的真实回报。
+
 ### 5.2 基础 GRPO 目标
 
 裁剪函数把标量 $z$ 限制在下界 $l$ 和上界 $u$ 之间：
@@ -260,6 +287,8 @@ $$
 \mathcal{J}_{\mathrm{GRPO}}(\theta)=\mathbb{E}\left[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{T_i}\sum_{t=1}^{T_i}\left(\min\left(\rho_{i,t}\hat A_{i,t},\,\mathrm{clip}(\rho_{i,t},1-\varepsilon,1+\varepsilon)\hat A_{i,t}\right)-\beta d_{i,t}\right)\right]
 $$
 
+这里采用 DeepSeekMath 4.1.1 节公式 3 的逐 token 完整形式。DeepSeek-R1 的 2.2.1 节用输出概率记号给出紧凑目标；若把输出概率按完整序列概率理解，其新旧比值就是全部 token 比值的乘积。对乘积做一次裁剪，与逐 token 裁剪再平均在数学上不同。因此，复现时应核对实现的概率比、裁剪和长度聚合粒度，不能将两种写法直接视作恒等公式。
+
 其中：
 
 - $G$ 是每个 prompt 的回答数量；
@@ -269,7 +298,7 @@ $$
 - $d_{i,t}$ 是在状态 $s_{i,t}$ 上，用已采样 token 构造的参考 KL 惩罚估计项；动作采样分布决定它是否严格对应当前策略的正向 KL；
 - 最外层 $\mathbb{E}$ 表示对训练 prompt 和由旧策略采样的回答组取期望；实际训练用当前 minibatch 的均值进行估计。
 
-因此，目标中的 $-\beta d_{i,t}$ 是 KL 惩罚项：偏离参考策略越明显，策略目标中被扣除的值越大。这里要区分两组比较关系： $\rho_{i,t}$ 比较当前策略与旧策略，用于限制这一轮更新； $d_{i,t}$ 比较当前策略与参考策略，用于限制整个训练过程的长期漂移。 $d_{i,t}$ 的具体计算公式和“采样估计”的含义将在 5.3 节展开。
+因此，目标中的 $-\beta d_{i,t}$ 是参考 KL 惩罚项，用于削弱策略偏离参考模型的激励。这里要区分两组比较关系： $\rho_{i,t}$ 比较当前策略与旧策略，用于控制本轮更新； $d_{i,t}$ 比较当前策略与参考策略，用于抑制长期行为漂移。一个已采样 token 的估计值不等于该状态完整分布的 KL；具体计算和梯度语义将在 5.3 节展开。
 
 先忽略 KL 项，目标中的乘积 $\rho_{i,t}\hat A_{i,t}$ 决定更新方向：优势为正时，增大该动作的概率比可以提高目标；优势为负时，减小该动作的概率比可以提高目标。`min` 与 `clip` 共同限制这种改动带来的收益：
 
@@ -278,7 +307,25 @@ $$
 
 因此，clipping 鼓励策略进行相对保守的更新。它不会把更新后的概率比硬锁在裁剪区间内，也不能保证真实 KL 一定低于某个阈值；共享模型参数还会同时改变许多未采样 token 的概率。实践中仍需监控新旧策略 KL、clip fraction 和概率比极值。
 
-这一部分与 PPO clipped objective 的形式相同，区别在于优势来自组内相对奖励，而不是价值模型和 GAE。 $1/T_i$ 使每条回答先在自身 token 上取平均，再在组内取平均；有些实现改为对整个 batch 的有效 token 统一平均，这会改变不同长度回答的相对权重。
+设 $\varepsilon=0.2$ ，只看某个 token 的任务代理项，暂不加 KL：
+
+| 组优势 | 概率比 | 未裁剪项 | 裁剪分支 | 取较小值后的目标 |
+| --- | --- | --- | --- | --- |
+| 1 | 1.5 | 1.5 | 1.2 | 1.2 |
+| -1 | 0.5 | -0.5 | -0.8 | -0.8 |
+| -1 | 1.5 | -1.5 | -1.2 | -1.5 |
+
+前两行限制了朝优势所指方向过度更新的收益；最后一行是负优势 token 反而变得更常见，代理目标继续惩罚这种变化。这里的数值是需要最大化的目标，策略 loss 通常取相反数。
+
+在结果监督下，起点的概率比全为 1，组内优势均值又为 0，所以该组的任务代理目标数值可能正好是 0；但不同回答的 log probability 梯度不同，任务梯度仍可能非零。这与“所有回答优势都为 0”的零方差组不同，不能只看某一步 loss 是否为 0 判断有没有学习信号。
+
+这一部分与 PPO clipped objective 的形式相同，区别在于优势来自组内相对奖励，而不是价值模型和 GAE。 $1/T_i$ 使每条回答先在自身 token 上取平均，再在组内取平均。在新旧策略相同的起点，忽略 KL 时，第 $i$ 条回答的策略梯度贡献包含下面的权重结构（暂不写组平均常数）：
+
+$$
+\frac{\hat A_i}{T_i}\sum_{t=1}^{T_i}\nabla_\theta\log\pi_\theta(a_{i,t}\mid s_{i,t})=\frac{\hat A_i}{T_i}\nabla_\theta\log\pi_\theta(y_i\mid x)
+$$
+
+这相当于按回答长度对序列梯度加权，而不是原始序列策略梯度中的简单 token 求和。比如两条回答优势同为 1，长度分别为 2 和 4，则每个 token 的系数分别为 0.5 和 0.25；它们的实际总梯度范数未必相同，因为不同 token 的梯度会叠加或抵消。若改为整个 batch 的有效 token 统一平均，样本权重又会改变。长度由采样动作决定，因此不能直接把 $1/T_i$ 当成与动作无关的固定基线或学习率。
 
 上式写成需要最大化的策略目标。训练框架中的优化器通常最小化 loss，因此代码一般最小化 $-\mathcal{J}_{\mathrm{GRPO}}(\theta)$ 或与它等价的 minibatch 估计；伪代码中的负号正是来自这一步转换。
 
@@ -303,13 +350,49 @@ $$
 d_{i,t}=\frac{\pi_{\mathrm{ref}}(a_{i,t}\mid s_{i,t})}{\pi_\theta(a_{i,t}\mid s_{i,t})}-\log\frac{\pi_{\mathrm{ref}}(a_{i,t}\mid s_{i,t})}{\pi_\theta(a_{i,t}\mid s_{i,t})}-1
 $$
 
-对任意正数 $u$ ，都有 $u-\log u-1\ge0$ ，所以该形式对单个采样 token 也非负。当动作由当前策略分布采样并取期望时，它对应上面的正向 KL。将 $\beta d_{i,t}$ 从策略收益中减去，就会惩罚偏离参考模型的更新。
+对任意正数 $u$ ，都有 $u-\log u-1\ge0$ ，所以该形式对单个采样 token 也非负。它通常称为 k3 估计形式。在固定状态上，若动作确实由当前策略采样，且两分布在词表上的支持集兼容，则其标量期望对应上面的正向 KL。这个结论涉及数值期望，并不自动规定它在训练代码中的梯度。
 
 这里有一个采样条件：GRPO 的实际回答来自 $\pi_{\mathrm{old}}$ ，并不是每次更新后重新从 $\pi_\theta$ 采样。因此，在旧 rollout 上直接平均 $d_{i,t}$ ，一般不再是当前动作分布下正向 KL 的严格无偏估计；新旧策略接近时，这个采样近似通常更合理。即使对动作作重要性加权，状态前缀的分布仍来自旧 rollout。阅读训练日志时，应确认记录的是完整词表 KL、旧采样下的估计值，还是新旧策略的 KL，不能只凭“KL”名称将它们混用。
 
 参考模型 KL 与 clipping 解决的问题不同：clipping 削弱当前策略相对本轮旧策略过度更新的激励，参考模型 KL 惩罚整个训练过程相对初始行为锚点的长期漂移。两者不能互相替代，也都不能自动保证某个硬界。
 
 不同训练框架可能使用 sampled log-ratio、直接 KL、上述估计器，或把 KL 作为 token 奖励而不是显式目标项。它们的梯度和日志数值并不完全相同。阅读配置时不能只看到参数名 `beta` 或 `kl_coef` 就假设实现与原论文公式一致。
+
+### 5.4 KL 估计值与反向传播路径
+
+期望依赖两个部分：采样概率和被平均的数值。对一批已经固定的 token 直接反向传播，自动微分通常只看到后者，并不会通过离散采样把概率变化的贡献补回来。
+
+以固定状态、固定动作和冻结参考模型为条件，直接对上面的 $d_{i,t}$ 求导得到：
+
+$$
+\nabla_\theta d_{i,t}=\left(1-\frac{\pi_{\mathrm{ref}}(a_{i,t}\mid s_{i,t})}{\pi_\theta(a_{i,t}\mid s_{i,t})}\right)\nabla_\theta\log\pi_\theta(a_{i,t}\mid s_{i,t})
+$$
+
+在新旧策略相同、任务项尚未被裁剪的起点，把任务梯度与 $-\beta d_{i,t}$ 的梯度合在一起，每个 token 的更新系数为：
+
+$$
+\left[\hat A_{i,t}+\beta\left(\frac{\pi_{\mathrm{ref}}(a_{i,t}\mid s_{i,t})}{\pi_\theta(a_{i,t}\mid s_{i,t})}-1\right)\right]\nabla_\theta\log\pi_\theta(a_{i,t}\mid s_{i,t})
+$$
+
+这里暂不写组平均和长度系数，优势与旧 log probability 均视为固定。该形式与 DeepSeekMath 附录 A.1.6 的公式 19–21 一致：论文是在固定旧数据的代理目标上求导，并为简化分析取新旧策略相同。若优势为 0，参考概率与当前概率不同，KL 系数仍可能产生更新；这也解释了 3.3 节的零方差组为什么不一定让总梯度为 0。
+
+即使动作恰好由当前策略采样，只对固定样本上的 $d_{i,t}$ 直接求导，其期望也不是正向 KL 的梯度。在固定状态和完整支持集条件下，它对应的是参考策略到当前策略的反向 KL 梯度：
+
+$$
+\mathbb{E}_{a\sim\pi_\theta(\cdot\mid s)}[\nabla_\theta d(s,a)]=-\mathbb{E}_{a\sim\pi_{\mathrm{ref}}(\cdot\mid s)}[\nabla_\theta\log\pi_\theta(a\mid s)]=\nabla_\theta D_{\mathrm{KL}}\left(\pi_{\mathrm{ref}}\|\pi_\theta\right)
+$$
+
+这里， $d(s,a)$ 是把上节的采样估计项写成状态与动作的函数。上述固定状态等式并不把实际 GRPO 总目标重新命名为反向 KL 目标：实际数据仍来自旧 rollout，并包含长度权重与任务代理项。若要对完整的正向 KL 求梯度，还需处理当前策略在期望中的权重；固定旧样本上的 k3 反传，不会自动实现这个梯度。它仍然可以作为一个明确的采样正则目标使用，但要按该目标的计算图解释更新，不能用“KL 数值估计无偏”替它证明梯度无偏。
+
+还要区分以下三种计算路径：
+
+| 计算方式 | 梯度从哪里进入策略 | 需要注意 |
+| --- | --- | --- |
+| 用旧策略与参考策略的 sampled log-ratio 构造 token 奖励，并停止这部分梯度 | KL 整形后的回报与优势，再进入策略梯度 | 奖励固定并不表示 KL 没有策略影响；它通过更新权重起作用 |
+| 对固定 token 上的当前 k3 项直接反传 | 当前 log probability 显式出现在 $d_{i,t}$ 中 | 优化的是所写的旧采样正则目标，不能仅凭数值期望等式称其为正向 KL 的无偏梯度 |
+| 在固定状态遍历词表计算完整正向 KL，再反传 | 当前词表概率与 log probability 都在计算图中 | 能计算该状态正向 KL 的梯度，但状态前缀的分布仍须另行说明 |
+
+直接对固定 token 上的当前 sampled log-ratio 反传，又与第一行的停止梯度奖励整形不同。复现时应核对 KL 在奖励中还是 loss 中、使用新概率还是旧概率、哪些张量被 `detach`，并避免无意中把同一惩罚同时加进奖励和 loss。
 
 ## 6. 一轮 GRPO 训练发生了什么
 
@@ -330,14 +413,21 @@ $$
 更新策略若干次，丢弃旧 rollout，再重新采样
 ```
 
-框架无关的伪代码如下：
+框架无关的伪代码如下。为让行为采样与原始模型概率一致，示例关闭截断和重复惩罚，使用温度 1 的随机采样；KL 采用固定样本上显式 k3 反传的路径：
 
 ```python
+old_policy.load_state_dict(policy.state_dict())
+
 for prompts in prompt_dataloader:
     with no_grad():
         grouped_responses = old_policy.generate(
             prompts,
             num_return_sequences=group_size,
+            do_sample=True,
+            temperature=1.0,
+            top_p=1.0,
+            top_k=0,
+            repetition_penalty=1.0,
         )
         old_log_probs = old_policy.log_probs(prompts, grouped_responses)
         rewards = reward_fn(prompts, grouped_responses)
@@ -345,7 +435,8 @@ for prompts in prompt_dataloader:
 
     for minibatch in repeat_and_shuffle(grouped_responses):
         new_log_probs = policy.log_probs(minibatch)
-        ref_log_probs = reference_policy.log_probs(minibatch)
+        with no_grad():
+            ref_log_probs = reference_policy.log_probs(minibatch)
 
         ratio = (new_log_probs - minibatch.old_log_probs).exp()
         policy_objective = clipped_objective(
@@ -353,10 +444,10 @@ for prompts in prompt_dataloader:
             advantages=minibatch.advantages,
             response_mask=minibatch.response_mask,
         )
-        kl_penalty = compute_kl_penalty(
-            new_log_probs=new_log_probs,
-            ref_log_probs=ref_log_probs,
-            response_mask=minibatch.response_mask,
+        ref_to_new_ratio = (ref_log_probs - new_log_probs).exp()
+        sampled_kl = ref_to_new_ratio - (ref_log_probs - new_log_probs) - 1
+        kl_penalty = average_within_response_then_group(
+            sampled_kl, response_mask=minibatch.response_mask,
         )
 
         optimize(-policy_objective + kl_coefficient * kl_penalty)
@@ -364,7 +455,9 @@ for prompts in prompt_dataloader:
     old_policy.load_state_dict(policy.state_dict())
 ```
 
-实际实现还要处理每个 prompt 的分组索引、不同长度回答、分布式全局统计、截断回答、重复样本和数值稳定性。若打乱 minibatch 后丢失 prompt 到回答的分组关系，计算出的就不再是组相对优势。
+伪代码省略了 rollout 数据结构：旧 log probability、奖励、优势、分组索引和 response mask 必须一起保存，并在后续打乱 minibatch 时继续对应；优势在这批更新中保持固定。`clipped_objective` 与 KL 聚合都应采用前文同样的“回答内平均，再组内平均”，不能让两个项意外使用不同长度权重。
+
+实际实现还要处理不同长度回答、分布式全局统计、截断回答、重复样本和数值稳定性。若打乱 minibatch 后丢失 prompt 到回答的分组关系，计算出的就不再是组相对优势。
 
 ## 7. GRPO 与 PPO 的对比
 
@@ -405,9 +498,15 @@ for prompts in prompt_dataloader:
 
 组均值只能在同一个 prompt 的候选回答之间计算。分布式训练时，一个 prompt 的回答可能分散在不同设备上，需要先正确聚合全组奖励。若每张卡各自计算局部均值，改变 GPU 数量就可能改变训练目标。
 
-### 9.2 组大小与采样多样性
+### 9.2 组大小、采样多样性与行为概率
 
 较大的 $G$ 能提供更稳定的组统计量，也更可能同时采到成功和失败回答，但生成成本近似线性增加。若采样温度太低，同组回答高度重复，即使 $G$ 很大也未必增加有效信息；温度太高则可能产生大量无效文本。应同时记录组内唯一回答比例、奖励标准差和非零优势组比例。
+
+温度缩放和 top-p 截断会改变真正产生 token 的概率分布。把该行为分布记为 $\mu_{\mathrm{old}}$ ：如果 $\pi_{\mathrm{old}}$ 指原始 logits 经过普通 softmax 得到的概率，而生成使用了温度或 top-p，那么一般有 $\mu_{\mathrm{old}}\ne\pi_{\mathrm{old}}$ 。此时，“当前原始模型概率除以旧原始模型概率”可以是实现选定的代理比值，却不是相对真实行为分布的严格重要性采样比。
+
+若把 $\pi$ 定义成经过生成变换的策略，则新旧 log probability 都应按这个定义计算；若目标策略仍是原始模型分布，动作分布校正的分母应对应实际行为概率。top-p 会将候选集合外的动作概率置零，无法仅靠已采样动作的概率比恢复这些被排除动作的贡献。因此，要记录采样温度、top-p、截断规则，以及保存的是原始概率还是行为概率；不能看到 `old_log_probs` 这个名称就认定分母定义正确。
+
+数值核对时可以先关闭 top-k、重复惩罚等会改写概率的处理，再从温度 1、top-p 为 1 的随机采样开始，使行为分布与原始模型概率一致。还要确认计算 log probability 时的 tokenizer、chat template、结束 token 和 dropout 等设置一致，避免把生成配置差异误诊为策略更新幅度。
 
 ### 9.3 标准差归一化不是无害操作
 
@@ -415,7 +514,7 @@ for prompts in prompt_dataloader:
 
 ### 9.4 回答长度会改变样本权重
 
-基础目标中的 $1/T_i$ 让每条回答获得近似相同总权重，但每个 token 分到的权重随回答长度变化。改为全局 token 平均后，长回答又会贡献更多 token。两种方式都可能形成长度偏好，因此应监控奖励与长度的相关性、正常结束率和截断比例。后续方法对长度归一化提出了多种修正，它们不是基础 GRPO 定义的一部分。
+基础目标中的 $1/T_i$ 使每条回答在聚合时先取平均，但不保证每条回答的实际总梯度一样大；每个 token 分到的系数随回答长度变化。改为全局 token 平均后，长回答会提供更多 token 项。长度由策略生成，既会影响任务得分，也会影响代理梯度权重。因此，两种方式都可能形成长度偏好，应监控奖励与长度的相关性、正常结束率和截断比例，而不应把长度归一化视为原始序列奖励目标的恒等改写。
 
 ### 9.5 只优化有效回答 token
 
@@ -487,11 +586,14 @@ GRPO 降低了 critic 的资源成本，但没有消除强化学习本身的困�
 3. 组均值包含当前回答的奖励，这与 RL 基础中“不依赖当前动作的基线”有什么区别？除以组标准差又会改变什么？
 4. 当前策略、旧策略、参考策略分别何时更新？为什么 $\rho_{i,t}$ 与 $d_{i,t}$ 比较的是不同模型？
 5. GRPO 省掉 critic 后，为什么总训练成本仍可能高于每个 prompt 只采少量回答的 PPO？
+6. 为什么完整序列 log probability 可以按 token 相加，但逐 token 裁剪目标并不等于完整轨迹重要性采样？ $1/T_i$ 又改变了什么？
+7. k3 项的标量期望等于正向 KL，需要什么采样条件？对固定样本直接反传，为什么不自动得到同一 KL 的梯度？
+8. 如果生成时使用了 top-p，而保存的是原始模型 log probability，为什么必须重新核查“旧策略概率”的定义？
 
 能独立解释这些问题，就完成了当前的 RL 基础 → PPO → GRPO 学习路线。本章先停在这组基础概念与算法关系，后续进阶内容在完成这轮学习后再确定。
 
 ## 参考文献
 
-1. Shao, Z., et al. [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300). 2024.
-2. DeepSeek-AI, et al. [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948). 2025.
+1. Shao, Z., et al. [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300). 2024。4.1.1 节公式 3–4：token 裁剪目标与显式 KL 项；4.1.2–4.1.3 节：结果与过程监督；4.1.4 节和算法 1：训练阶段间的奖励与参考模型更新；附录 A.1.6 公式 19–21：固定旧采样目标的梯度系数。
+2. DeepSeek-AI, et al. [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948). 2025。2.1–2.2 节：R1-Zero 从基座模型开始 RL；2.2.1 节：输出记号下的 GRPO 紧凑公式；2.2.2 节：准确性与格式规则奖励。
 3. Schulman, J., et al. [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347). 2017.

@@ -26,6 +26,32 @@ Thumbs.db
 *.swp
 *.swo
 
+# Word 文档、模板及常见兼容格式（匹配大小写后缀）
+*.[dD][oO][cC]
+*.[dD][oO][cC][xX]
+*.[dD][oO][cC][mM]
+*.[dD][oO][cC][bB]
+*.[dD][oO][tT]
+*.[dD][oO][tT][xX]
+*.[dD][oO][tT][mM]
+*.[rR][tT][fF]
+*.[oO][dD][tT]
+*.[oO][tT][tT]
+*.[wW][pP][sS]
+*.[wW][pP][tT]
+
+# PDF 文档
+*.[pP][dD][fF]
+
+# Word / Office 锁文件、备份、自动恢复及临时缓存
+~$*
+.~lock.*#
+*.[wW][bB][kK]
+*.[aA][sS][dD]
+*.[tT][mM][pP]
+*.[tT][eE][mM][pP]
+*.[cC][aA][cC][hH][eE]
+
 # Environment and secrets
 .env
 .env.*
