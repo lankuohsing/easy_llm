@@ -54,7 +54,15 @@ Python 代码应保持简单、清晰，适合教程阅读。使用 4 空格缩�
 
 不同章节中的公式符号必须兼容、一致。新增或改写公式时，应检查已有章节的变量命名、上下标和目标函数记号，避免同一概念使用多个符号，或同一符号表示不同含义。
 
-Markdown 公式应同时兼容 GitHub 与 VS Code/Cursor 的标准 Markdown Preview。行内公式使用 `$...$` 时，公式前后的 `$` 都不要紧贴中文标点，应与正文保留一个空格；不要在 `$` 与公式内容之间额外加空格。包含多层上下标、分式或较长表达式的公式优先使用独立公式块，避免 GitHub 行内解析不稳定。行间公式的 `$$` 必须单独成行，并在公式块前后保留空行。LaTeX 公式中不要直接写 `<`，因为 GitHub 可能先将其解析为 HTML；小于号统一写成 `\lt`。GitHub 禁止 `\operatorname` 宏，arg min/max 应写成 `\underset{\theta}{\arg\min}` 或 `\underset{\theta}{\arg\max}`。修改公式后，应检查是否仍有紧贴中文标点的行内公式、数学环境中的裸 `<`，或 GitHub 不允许的宏。
+Markdown 公式应同时兼容 **MarkText、GitHub 与 VS Code/Cursor 的标准 Markdown Preview**。以下是本仓库采用的保守兼容写法；本地正常显示，不能作为 GitHub 正常显示的依据。详细示例见 [MARKDOWN_GUIDE.md](./MARKDOWN_GUIDE.md)。
+
+- **行内公式**使用 `$...$`，公式前后与正文、中文标点之间保留一个空格；不要在 `$` 与公式内容之间额外加空格。包含多层上下标、分式或较长表达式的公式优先使用独立公式块，避免 GitHub 行内解析不稳定。
+- **行间公式**使用三行式：起止 `$$` 分别独占一行，公式主体放在一个物理行内，整个公式块前后保留空行。不要把等号单独放一行，以免被 Markdown 解析为 Setext 标题。多步推导使用 `\begin{aligned} ... \\ ... \end{aligned}`，在同一物理行内用 `\\` 保留数学排版的换行与对齐。
+- **公式编号**不要使用 `\tag{...}`。本仓库已在 GitHub 的带编号公式中复现竖排异常，因此统一改用普通公式内容 `\qquad\text{(1.1)}`，或在数学块外写普通文本“公式 (1.1)”。前者的编号紧随公式，不保证靠页面右边对齐。不要依赖 `\label`、`\eqref` 自动跨公式编号或引用；修改时保留原编号和正文引用，不随意重编号。
+- **数学宏**避免 GitHub 不接受的 `\operatorname` 和 `\operatorname*`；arg min/max 使用 `\underset{\theta}{\arg\min}` 或 `\underset{\theta}{\arg\max}`，普通函数名使用 `\mathrm{...}`。行内拉丁字母向量优先使用 `\mathbf`，谨慎使用 `\boldsymbol`；新宏需核对两端兼容性。
+- **易与 Markdown 冲突的符号**：数学环境中的小于号写成 `\lt`，不要直接写裸 `<`；数学上标星号使用 `^{\ast}`，例如 `\pi^{\ast}`，避免裸 `^*` 被 Markdown 当成强调标记。不要因此改写代码块或普通正文中的星号。
+- **修改后检查**：核对公式定界符、花括号、环境和代码围栏是否成对，检查行内公式间距、三行式结构、裸 `<`、不兼容宏与编号引用，并确认公式含义未因格式修复而改变。长公式还应检查是否能完整阅读，必要时用 `aligned` 合理分行。
+- **渲染验证**：条件允许时，在 MarkText 和 GitHub 中实际检查，至少覆盖本次改动涉及的行内公式、编号公式、多行推导及表格公式。KaTeX 的语法或 HTML/MathML 输出检查只能辅助验证，不能替代 GitHub 的实际页面渲染；若某端无法实测，应明确记录已完成的检查与未验证的部分，不得声称已完成双端验证。
 
 Cursor 的编辑区内置了带有 “Preview / Markdown” 切换按钮的 WYSIWYG Markdown 预览，但该预览器与 VS Code 标准 Markdown Preview 不是同一个组件，可能直接显示 LaTeX 源码，且不受 `markdown.math.enabled` 控制。即使 `.vscode/settings.json` 已将 `*.md` 默认关联到 `vscode.markdown.preview.editor`，从源码点击 Cursor 右上角的 “Preview” 仍会切回不支持公式的 WYSIWYG 预览；文件关联只能保证重新打开文件时进入标准预览，不能改变这个按钮的行为。
 

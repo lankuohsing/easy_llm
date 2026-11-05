@@ -11,15 +11,15 @@
 智能体在看到状态 $s_t$ 的情况下，确定地执行 $a_t$
 
 $$
-a_t = \mu_\theta(s_t) \tag{1.1}
+a_t = \mu_\theta(s_t) \qquad\text{(1.1)}
 $$
 
 #### 1.1.2. 随机性策略
 
-智能体在看到状态 $s_t$ 的情况下，其可能执行的动作服从概率分布 $\pi_\theta(\cdot \mid s_t)$。也就是此时智能体是以一定概率执行某个动作 $a_t$。
+智能体在看到状态 $s_t$ 的情况下，其可能执行的动作服从概率分布 $\pi_\theta(\cdot \mid s_t)$ 。也就是此时智能体是以一定概率执行某个动作 $a_t$ 。
 
 $$
-a_t \sim \pi_\theta(\cdot \mid s_t) \tag{1.2}
+a_t \sim \pi_\theta(\cdot \mid s_t) \qquad\text{(1.2)}
 $$
 
 **在下文中，我们都假设智能体采用的是随机性策略。** 对应到RLHF的场景中，就是输入某个prompt后，模型预测的下一个token是随机的。
@@ -62,7 +62,7 @@ SGLang 会将零温度请求转为贪心解码，每一步选择概率最大的 
 **马尔可夫性质**：给定当前状态和动作，下一状态与单步奖励的条件分布由它们决定。当前状态已经概括了影响这些分布的历史信息。
 
 $$
-P(s_{t+1},r_t \mid s_0,a_0,r_0,\ldots,s_t,a_t) = P(s_{t+1},r_t \mid s_t,a_t) \tag{1.3}
+P(s_{t+1},r_t \mid s_0,a_0,r_0,\ldots,s_t,a_t) = P(s_{t+1},r_t \mid s_t,a_t) \qquad\text{(1.3)}
 $$
 
 以满足这一性质的状态描述环境，并引入动作和奖励，可以建模为**马尔可夫决策过程（MDP）**。状态转移可以是确定的或随机的。
@@ -83,7 +83,7 @@ $$
 **本文统一假设：给定当前状态、动作和下一状态后，单步奖励确定。** 奖励函数由环境定义，策略决定状态和动作的访问分布。
 
 $$
-r_t = R(s_t, a_t, s_{t+1}) \tag{1.4}
+r_t = R(s_t, a_t, s_{t+1}) \qquad\text{(1.4)}
 $$
 
 奖励写成 $R(s_t, a_t)$ 时，常见两种情况：
@@ -99,19 +99,19 @@ $$
 
 #### 1.3.2. 回报：T步累计奖励
 
-对于包含 $T$ 步交互的轨迹 $\tau$，未折扣回报是沿该轨迹获得的 $T$ 个单步奖励之和。
+对于包含 $T$ 步交互的轨迹 $\tau$ ，未折扣回报是沿该轨迹获得的 $T$ 个单步奖励之和。
 
 $$
-R(\tau) = \sum_{t=0}^{T-1} r_t \tag{1.5}
+R(\tau) = \sum_{t=0}^{T-1} r_t \qquad\text{(1.5)}
 $$
 
 #### 1.3.3. 折扣回报：T步累计折扣奖励
 
 $$
-R(\tau) = \sum_{t=0}^{T-1} \gamma^t r_t,\quad \gamma \in (0, 1) \tag{1.6}
+R(\tau) = \sum_{t=0}^{T-1} \gamma^t r_t,\quad \gamma \in (0, 1) \qquad\text{(1.6)}
 $$
 
-折扣因子控制不同时间奖励的权重，$\gamma$ 越小，越关注近期收益。从当前状态看，远期回报通常涉及更多尚未确定的动作和状态。折扣减小远期随机奖励的权重，可用于控制回报和优势估计的方差，同时也会压低长期收益信号。
+折扣因子控制不同时间奖励的权重， $\gamma$ 越小，越关注近期收益。从当前状态看，远期回报通常涉及更多尚未确定的动作和状态。折扣减小远期随机奖励的权重，可用于控制回报和优势估计的方差，同时也会压低长期收益信号。
 
 以未折扣回报为目标时，使用折扣估计需要权衡偏差和方差：较小的 $\gamma$ 加强远期折扣，通常有助于降低估计方差，同时可能增大折扣造成的偏差；较大的 $\gamma$ 更接近未折扣目标，也保留更多远期随机波动。具体效果取决于奖励结构和估计方法。
 
@@ -124,51 +124,51 @@ $$
 状态价值函数 $V_\pi(s)$ 表示从状态 $s$ 出发，每一步均按策略 $\pi$ 选择动作时的期望回报。期望同时考虑动作采样和环境转移的随机性。
 
 $$
-V_\pi(s) = \mathbb{E}_\pi\left[R(\tau) \mid s_0 = s\right] \tag{1.7}
+V_\pi(s) = \mathbb{E}_\pi\left[R(\tau) \mid s_0 = s\right] \qquad\text{(1.7)}
 $$
 
 #### 1.3.5. 动作价值函数Q(s,a)：给定状态和动作的期望回报
 
-动作价值函数 $Q_\pi(s,a)$ 表示在状态 $s$ 下先执行给定动作 $a$，随后按策略 $\pi$ 选择动作时的期望回报，包含执行当前动作获得的奖励。
+动作价值函数 $Q_\pi(s,a)$ 表示在状态 $s$ 下先执行给定动作 $a$ ，随后按策略 $\pi$ 选择动作时的期望回报，包含执行当前动作获得的奖励。
 
 $$
-Q_\pi(s,a) = \mathbb{E}_\pi\left[R(\tau) \mid s_0 = s, a_0 = a\right] \tag{1.8}
+Q_\pi(s,a) = \mathbb{E}_\pi\left[R(\tau) \mid s_0 = s, a_0 = a\right] \qquad\text{(1.8)}
 $$
 
 #### 1.3.6. 贝尔曼方程：长期回报的一步分解
 
 <a id="bellman-equations"></a>
 
-在[马尔可夫环境](#markov-environment)中，贝尔曼方程将长期回报拆成**当前一步奖励与折扣后的后续回报**。以下固定策略 $\pi$，假设价值有限，$s'$ 为下一状态，$a'$ 为下一动作，终止状态的后续价值取 0。
+在[马尔可夫环境](#markov-environment)中，贝尔曼方程将长期回报拆成**当前一步奖励与折扣后的后续回报**。以下固定策略 $\pi$ ，假设价值有限， $s'$ 为下一状态， $a'$ 为下一动作，终止状态的后续价值取 0。
 
-**回报递推**：$G_t$ 是从当前步开始的剩余折扣回报。
+**回报递推**： $G_t$ 是从当前步开始的剩余折扣回报。
 
 $$
-G_t = r_t + \gamma G_{t+1} \tag{1.9}
+G_t = r_t + \gamma G_{t+1} \qquad\text{(1.9)}
 $$
 
 **状态价值**：对当前动作和下一状态取期望。
 
 $$
-V_\pi(s) = \mathbb{E}_{\substack{a \sim \pi(\cdot \mid s) \\ s' \sim P(\cdot \mid s,a)}}\left[R(s,a,s') + \gamma V_\pi(s')\right] \tag{1.10}
+V_\pi(s) = \mathbb{E}_{\substack{a \sim \pi(\cdot \mid s) \\ s' \sim P(\cdot \mid s,a)}}\left[R(s,a,s') + \gamma V_\pi(s')\right] \qquad\text{(1.10)}
 $$
 
 **动作价值**：当前动作已给定，对下一状态取期望。
 
 $$
-Q_\pi(s,a) = \mathbb{E}_{s' \sim P(\cdot \mid s,a)}\left[R(s,a,s') + \gamma V_\pi(s')\right] \tag{1.11}
+Q_\pi(s,a) = \mathbb{E}_{s' \sim P(\cdot \mid s,a)}\left[R(s,a,s') + \gamma V_\pi(s')\right] \qquad\text{(1.11)}
 $$
 
 **同一状态的 V 与 Q**：按策略对各动作的 Q 取期望。
 
 $$
-V_\pi(s) = \mathbb{E}_{a \sim \pi(\cdot \mid s)}\left[Q_\pi(s,a)\right] \tag{1.12}
+V_\pi(s) = \mathbb{E}_{a \sim \pi(\cdot \mid s)}\left[Q_\pi(s,a)\right] \qquad\text{(1.12)}
 $$
 
 **Q 的一步递推**：将下一状态的 V 展开，对下一状态和下一动作取期望。
 
 $$
-Q_\pi(s,a) = \mathbb{E}_{\substack{s' \sim P(\cdot \mid s,a) \\ a' \sim \pi(\cdot \mid s')}}\left[R(s,a,s') + \gamma Q_\pi(s',a')\right] \tag{1.13}
+Q_\pi(s,a) = \mathbb{E}_{\substack{s' \sim P(\cdot \mid s,a) \\ a' \sim \pi(\cdot \mid s')}}\left[R(s,a,s') + \gamma Q_\pi(s',a')\right] \qquad\text{(1.13)}
 $$
 
 这些关系是策略评估与价值学习的基础；求最优价值时，贝尔曼最优性方程对动作的期望回报取最大值。迭代计算见[附录](#appendix-bellman-maze)。
@@ -180,19 +180,19 @@ $$
 交互从初始状态开始，其分布由 $\rho_0$ 描述：
 
 $$
-s_0 \sim \rho_0(\cdot) \tag{1.14}
+s_0 \sim \rho_0(\cdot) \qquad\text{(1.14)}
 $$
 
-在状态 $s_t$ 执行动作 $a_t$ 后，环境返回下一状态 $s_{t+1}$ 与单步奖励 $r_t$。状态转移写为：
+在状态 $s_t$ 执行动作 $a_t$ 后，环境返回下一状态 $s_{t+1}$ 与单步奖励 $r_t$ 。状态转移写为：
 
 $$
-s_{t+1} \sim P(\cdot \mid s_t, a_t) \tag{1.15}
+s_{t+1} \sim P(\cdot \mid s_t, a_t) \qquad\text{(1.15)}
 $$
 
 $T$ 步交互产生的状态、动作与奖励序列称为轨迹：
 
 $$
-\tau = (s_0, a_0, r_0, s_1, a_1, r_1, \cdots, s_{T-1}, a_{T-1}, r_{T-1}, s_T) \tag{1.16}
+\tau = (s_0, a_0, r_0, s_1, a_1, r_1, \cdots, s_{T-1}, a_{T-1}, r_{T-1}, s_T) \qquad\text{(1.16)}
 $$
 
 一次完整回合（episode）从初始化持续到任务终止；rollout 指按策略采样得到的一段轨迹。
@@ -210,7 +210,7 @@ $$
 
 强化学习的目标是找到使期望回报尽量大的策略。经典策略迭代围绕两个环节展开：
 
-- **策略评估**：给定策略 $\pi$，估计其价值函数 $V_\pi$。
+- **策略评估**：给定策略 $\pi$ ，估计其价值函数 $V_\pi$ 。
 - **策略改进**：根据价值评估调整策略，提高期望回报。
 
 ```mermaid
@@ -219,7 +219,7 @@ flowchart LR
     V -->|策略改进| P
 ```
 
-在有限状态、有限动作且折扣因子小于 1 的 MDP 中，交替进行精确策略评估和贪心改进，可以得到最优策略 $\pi^*$ 及其价值函数 $V_{\pi^*}$。具体例子见[附录 A](#appendix-bellman-maze)。
+在有限状态、有限动作且折扣因子小于 1 的 MDP 中，交替进行精确策略评估和贪心改进，可以得到最优策略 $\pi^{\ast}$ 及其价值函数 $V_{\pi^{\ast}}$ 。具体例子见[附录 A](#appendix-bellman-maze)。
 
 按主要学习对象，常见方法可概括为：
 
@@ -236,20 +236,20 @@ flowchart LR
 记 $P_\theta$ 为策略 $\pi_\theta$ 与环境交互产生的轨迹分布。目标函数是轨迹回报的期望：
 
 $$
-J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\right] = \sum_\tau R(\tau)P_\theta(\tau) \tag{2.1}
+J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\right] = \sum_\tau R(\tau)P_\theta(\tau) \qquad\text{(2.1)}
 $$
 
 优化策略参数，使目标函数尽量大：
 
 $$
-\theta^* \in \operatorname*{arg\,max}_\theta J(\theta) \tag{2.2}
+\theta^{\ast} \in \underset{\theta}{\arg\max} J(\theta) \qquad\text{(2.2)}
 $$
 
-- $\tau$：一条完整的交互轨迹。
-- $\pi_\theta$：参数为 $\theta$ 的策略。
-- $R(\tau)$：该轨迹的实际回报，可采用公式 (1.5) 的未折扣回报或公式 (1.6) 的折扣回报。
-- $P_\theta(\tau)$：采用策略 $\pi_\theta$ 时产生该轨迹的概率。
-- $J(\theta)$：策略在相应任务分布上的期望回报。
+- $\tau$ ：一条完整的交互轨迹。
+- $\pi_\theta$ ：参数为 $\theta$ 的策略。
+- $R(\tau)$ ：该轨迹的实际回报，可采用公式 (1.5) 的未折扣回报或公式 (1.6) 的折扣回报。
+- $P_\theta(\tau)$ ：采用策略 $\pi_\theta$ 时产生该轨迹的概率。
+- $J(\theta)$ ：策略在相应任务分布上的期望回报。
 
 公式 (2.1) 的求和形式适用于离散轨迹空间，连续情形对应积分。采样过程沿用 1.4 节：从初始状态开始，按策略选择动作，再与环境交互形成轨迹。
 
@@ -264,23 +264,23 @@ $$
 对公式 (2.1) 求梯度：
 
 $$
-\nabla_\theta J(\theta) = \sum_\tau R(\tau)\nabla_\theta P_\theta(\tau) \tag{2.3}
+\nabla_\theta J(\theta) = \sum_\tau R(\tau)\nabla_\theta P_\theta(\tau) \qquad\text{(2.3)}
 $$
 
 乘除轨迹概率，再使用对数求导关系：
 
 $$
-\nabla_\theta J(\theta) = \sum_\tau R(\tau)P_\theta(\tau)\frac{\nabla_\theta P_\theta(\tau)}{P_\theta(\tau)} \tag{2.4}
+\nabla_\theta J(\theta) = \sum_\tau R(\tau)P_\theta(\tau)\frac{\nabla_\theta P_\theta(\tau)}{P_\theta(\tau)} \qquad\text{(2.4)}
 $$
 
 $$
-\nabla_\theta J(\theta) = \sum_\tau R(\tau)P_\theta(\tau)\nabla_\theta\log P_\theta(\tau) \tag{2.5}
+\nabla_\theta J(\theta) = \sum_\tau R(\tau)P_\theta(\tau)\nabla_\theta\log P_\theta(\tau) \qquad\text{(2.5)}
 $$
 
 将概率加权求和写成期望：
 
 $$
-\nabla_\theta J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\nabla_\theta\log P_\theta(\tau)\right] \tag{2.6}
+\nabla_\theta J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\nabla_\theta\log P_\theta(\tau)\right] \qquad\text{(2.6)}
 $$
 
 直接计算公式 (2.3) 需要枚举全部可能轨迹，实际任务中通常难以完成。公式 (2.6) 利用对数求导关系，将同一梯度改写为当前策略下的期望：概率权重体现在采样频率中，依据大数定律可用样本平均估计。**这一等价变形使我们可以用有限条交互轨迹估计策略梯度，并据此更新参数。** 采样方法及适用条件见 2.2.3 节。
@@ -290,29 +290,25 @@ $$
 轨迹概率分解为：
 
 $$
-P_\theta(\tau) = \rho_0(s_0)\prod_{t=0}^{T-1}\pi_\theta(a_t \mid s_t)P(s_{t+1} \mid s_t,a_t) \tag{2.7}
+P_\theta(\tau) = \rho_0(s_0)\prod_{t=0}^{T-1}\pi_\theta(a_t \mid s_t)P(s_{t+1} \mid s_t,a_t) \qquad\text{(2.7)}
 $$
 
 取对数，将乘积展开为求和：
 
 $$
-\begin{aligned}
-\log P_\theta(\tau)
-&= \log\rho_0(s_0) + \sum_{t=0}^{T-1}\log P(s_{t+1} \mid s_t,a_t) \\
-&\quad + \sum_{t=0}^{T-1}\log\pi_\theta(a_t \mid s_t)
-\end{aligned} \tag{2.8}
+\begin{aligned} \log P_\theta(\tau) &= \log\rho_0(s_0) + \sum_{t=0}^{T-1}\log P(s_{t+1} \mid s_t,a_t) \\ &\quad + \sum_{t=0}^{T-1}\log\pi_\theta(a_t \mid s_t) \end{aligned} \qquad\text{(2.8)}
 $$
 
 初始分布与环境转移项对 $\theta$ 的导数为 0，留下策略项：
 
 $$
-\nabla_\theta\log P_\theta(\tau) = \sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t \mid s_t) \tag{2.9}
+\nabla_\theta\log P_\theta(\tau) = \sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t \mid s_t) \qquad\text{(2.9)}
 $$
 
 将公式 (2.9) 代入公式 (2.6)，得到策略梯度：
 
 $$
-\nabla_\theta J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t \mid s_t)\right] \tag{2.10}
+\nabla_\theta J(\theta) = \mathbb{E}_{\tau \sim P_\theta}\left[R(\tau)\sum_{t=0}^{T-1}\nabla_\theta\log\pi_\theta(a_t \mid s_t)\right] \qquad\text{(2.10)}
 $$
 
 **即使环境转移概率未知，也能通过交互样本估计策略梯度。** 初始分布和环境转移与策略参数无关，取对数再求导后只留下策略项。实际训练时，记录轨迹与回报，用回报作为权重，对所选动作的对数概率反向传播即可。环境决定哪些状态和奖励更常被采到，其影响保留在样本中，因此可以省去转移模型的估计，以及轨迹概率和环境转移概率的显式计算。
@@ -322,23 +318,23 @@ $$
 最大化 $J$ 时，沿梯度方向更新参数：
 
 $$
-\theta_{\mathrm{new}} = \theta + \alpha\nabla_\theta J(\theta) \tag{2.11}
+\theta_{\mathrm{new}} = \theta + \alpha\nabla_\theta J(\theta) \qquad\text{(2.11)}
 $$
 
 $\alpha$ 为正的学习率。单条正回报轨迹贡献的更新方向倾向于提高其动作序列的概率，负回报轨迹贡献相反方向；回报决定该轨迹在梯度估计中的权重。实际更新由批次内所有轨迹的梯度共同决定，各动作概率的变化还受共享参数影响。
 
-固定当前策略参数 $\theta$，按策略 $\pi_\theta$ 独立采样 $N$ 条轨迹，组成批次 $D$。第 $n$ 条轨迹长度为 $T_n$，其中的状态与动作记为 $s_{n,t}$ 和 $a_{n,t}$。
+固定当前策略参数 $\theta$ ，按策略 $\pi_\theta$ 独立采样 $N$ 条轨迹，组成批次 $D$ 。第 $n$ 条轨迹长度为 $T_n$ ，其中的状态与动作记为 $s_{n,t}$ 和 $a_{n,t}$ 。
 
-回报样本均值用于估计 $J(\theta)$：
+回报样本均值用于估计 $J(\theta)$ ：
 
 $$
-\widehat J_D = \frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n) \tag{2.12}
+\widehat J_D = \frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n) \qquad\text{(2.12)}
 $$
 
 同样，用样本平均估计公式 (2.10) 的梯度：
 
 $$
-\widehat g_D(\theta) = \frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n)\sum_{t=0}^{T_n-1}\nabla_\theta\log\pi_\theta(a_{n,t} \mid s_{n,t}) \tag{2.13}
+\widehat g_D(\theta) = \frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n)\sum_{t=0}^{T_n-1}\nabla_\theta\log\pi_\theta(a_{n,t} \mid s_{n,t}) \qquad\text{(2.13)}
 $$
 
 样本平均近似期望的依据是**大数定律**：固定策略参数，各条轨迹独立地从同一分布采样。当回报及每条轨迹的梯度贡献各分量的绝对值具有有限期望时，随着样本数趋于无穷，公式 (2.12)、公式 (2.13) 的样本平均分别收敛于期望回报和真实策略梯度。有限样本下，回报与梯度估计仍有采样误差。
@@ -348,7 +344,7 @@ $$
 为通过自动微分计算公式 (2.13) 的梯度估计，构造训练损失：
 
 $$
-\mathcal L_D(\theta) = -\frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n)\sum_{t=0}^{T_n-1}\log\pi_\theta(a_{n,t} \mid s_{n,t}) \tag{2.14}
+\mathcal L_D(\theta) = -\frac{1}{N}\sum_{n=0}^{N-1}R(\tau_n)\sum_{t=0}^{T_n-1}\log\pi_\theta(a_{n,t} \mid s_{n,t}) \qquad\text{(2.14)}
 $$
 
 固定采样批次，将轨迹和回报视为常量，动作的对数概率用于向策略网络反向传播。批次按当前策略采样，在采样参数处，该损失的梯度等于公式 (2.13) 中梯度估计的负值，因此用梯度下降即可沿策略梯度方向更新参数。
@@ -363,24 +359,20 @@ $$
 
 梯度与权重的关系，以及强化学习和监督学习中加权的作用，见[附录 B](#appendix-gradient-weighting)。
 
-本节先采用有限回合的未折扣回报（$\gamma=1$），$V_\pi$、$Q_\pi$ 也按这一回报定义，终止状态的后续价值为 0。下文的 $\pi$ 为当前策略 $\pi_\theta$。
+本节先采用有限回合的未折扣回报（ $\gamma=1$ ）， $V_\pi$ 、 $Q_\pi$ 也按这一回报定义，终止状态的后续价值为 0。下文的 $\pi$ 为当前策略 $\pi_\theta$ 。
 
 #### 2.3.1. 常见的权重形式
 
 统一用 $\Psi_t$ 表示每步梯度前的权重。对下文保持梯度期望的选择，可以写成：
 
 $$
-\begin{aligned}
-\nabla_\theta J(\theta)
-&= \mathbb{E}_{\tau \sim P_\theta}\left[\sum_{t=0}^{T-1}\Psi_t\nabla_\theta\log\pi_\theta(a_t \mid s_t)\right] \\
-&\approx \frac{1}{N}\sum_{n=0}^{N-1}\sum_{t=0}^{T_n-1}\Psi_{n,t}\nabla_\theta\log\pi_\theta(a_{n,t} \mid s_{n,t})
-\end{aligned} \tag{2.15}
+\begin{aligned} \nabla_\theta J(\theta) &= \mathbb{E}_{\tau \sim P_\theta}\left[\sum_{t=0}^{T-1}\Psi_t\nabla_\theta\log\pi_\theta(a_t \mid s_t)\right] \\ &\approx \frac{1}{N}\sum_{n=0}^{N-1}\sum_{t=0}^{T_n-1}\Psi_{n,t}\nabla_\theta\log\pi_\theta(a_{n,t} \mid s_{n,t}) \end{aligned} \qquad\text{(2.15)}
 $$
 
 将当前动作及其之后的累计奖励称为**后续回报（reward-to-go）**：
 
 $$
-G_t = \sum_{k=t}^{T-1}r_k \tag{2.16}
+G_t = \sum_{k=t}^{T-1}r_k \qquad\text{(2.16)}
 $$
 
 GAE 论文归纳了以下六种常见权重形式：
@@ -405,16 +397,13 @@ GAE 论文归纳了以下六种常见权重形式：
 相应的状态价值与动作价值为：
 
 $$
-\begin{aligned}
-V_\pi(s_t) &= \mathbb{E}_\pi[G_t \mid s_t], \\
-Q_\pi(s_t,a_t) &= \mathbb{E}_\pi[G_t \mid s_t,a_t]
-\end{aligned} \tag{2.17}
+\begin{aligned} V_\pi(s_t) &= \mathbb{E}_\pi[G_t \mid s_t], \\ Q_\pi(s_t,a_t) &= \mathbb{E}_\pi[G_t \mid s_t,a_t] \end{aligned} \qquad\text{(2.17)}
 $$
 
 两者之差定义为**优势函数（advantage function）**：
 
 $$
-A_\pi(s_t,a_t) = Q_\pi(s_t,a_t)-V_\pi(s_t) \tag{2.18}
+A_\pi(s_t,a_t) = Q_\pi(s_t,a_t)-V_\pi(s_t) \qquad\text{(2.18)}
 $$
 
 这里的平均按策略的动作概率加权。正优势表示该动作的期望回报高于当前策略在此状态下的平均水平，负优势表示低于平均水平。用优势作为梯度权重，正优势样本倾向于提高相应动作的概率，负优势样本贡献相反方向；实际更新由批次中的梯度共同决定。
@@ -422,16 +411,13 @@ $$
 优势函数是许多策略优化算法的核心，实际训练中通常需要估计。**单步 TD 估计**利用当前奖励和下一状态的价值，构造 TD 残差：
 
 $$
-\delta_t = r_t+V_\pi(s_{t+1})-V_\pi(s_t) \tag{2.19}
+\delta_t = r_t+V_\pi(s_{t+1})-V_\pi(s_t) \qquad\text{(2.19)}
 $$
 
-使用真实价值函数时，给定当前状态和动作，TD 残差的期望等于优势函数。实际用 $\widehat V$ 近似 $V_\pi$，可以同时估计动作价值与优势：
+使用真实价值函数时，给定当前状态和动作，TD 残差的期望等于优势函数。实际用 $\widehat V$ 近似 $V_\pi$ ，可以同时估计动作价值与优势：
 
 $$
-\begin{aligned}
-\widehat Q_t &= r_t+\widehat V(s_{t+1}), \\
-\widehat A_t &= \widehat Q_t-\widehat V(s_t)
-\end{aligned} \tag{2.20}
+\begin{aligned} \widehat Q_t &= r_t+\widehat V(s_{t+1}), \\ \widehat A_t &= \widehat Q_t-\widehat V(s_t) \end{aligned} \qquad\text{(2.20)}
 $$
 
 这种方法只需学习一个状态价值函数，即可构造动作价值和优势估计，适合逐步更新。价值估计的误差可能引入偏差；用于策略更新时，估计的优势作为常量权重。
@@ -462,22 +448,22 @@ $$
 
 ### A.2. 策略评估：随机行走需要多少步
 
-固定策略 $\pi$，在每个非终点以相同概率选择四个动作。将环境规则代入公式 (1.10)，并用上一轮的价值更新下一轮，得到：
+固定策略 $\pi$ ，在每个非终点以相同概率选择四个动作。将环境规则代入公式 (1.10)，并用上一轮的价值更新下一轮，得到：
 
 $$
-V_\pi^{(k+1)}(s) = \frac{1}{4}\sum_{a \in \{\text{上,下,左,右}\}}\left[-1 + V_\pi^{(k)}(f(s,a))\right] \tag{A.1}
+V_\pi^{(k+1)}(s) = \frac{1}{4}\sum_{a \in \{\text{上,下,左,右}\}}\left[-1 + V_\pi^{(k)}(f(s,a))\right] \qquad\text{(A.1)}
 $$
 
 从全零初值反复更新公式 (A.1)，即可求出随机策略下的价值。令 $N$ 表示从当前状态到终点所需的动作次数，本例每步奖励为 −1，因此：
 
 $$
-V_\pi(s) = -\mathbb{E}_\pi[N \mid s_0=s] \tag{A.2}
+V_\pi(s) = -\mathbb{E}_\pi[N \mid s_0=s] \qquad\text{(A.2)}
 $$
 
 也可以直接求解贝尔曼方程组成的线性方程组。例如，在状态 `1` 向上、向左会留在原地，向右到 `2`，向下到 `4`：
 
 $$
-V_\pi(1) = -1 + \frac{1}{4}\left[2V_\pi(1) + V_\pi(2) + V_\pi(4)\right] \tag{A.3}
+V_\pi(1) = -1 + \frac{1}{4}\left[2V_\pi(1) + V_\pi(2) + V_\pi(4)\right] \qquad\text{(A.3)}
 $$
 
 为其余非终点写出同类方程，并将终点价值固定为 0，得到以下结果。表格位置与网格位置对应：
@@ -497,7 +483,7 @@ $$
 用公式 (1.11) 计算每个动作的 Q。本例转移确定、每步奖励为 −1、折扣因子为 1：
 
 $$
-Q_\pi(s,a) = -1 + V_\pi(f(s,a)) \tag{A.4}
+Q_\pi(s,a) = -1 + V_\pi(f(s,a)) \qquad\text{(A.4)}
 $$
 
 起点 `1` 的四个动作价值如下：
@@ -512,13 +498,13 @@ $$
 这里的 Q 表示**先执行该动作，随后继续按随机策略行动**时的期望回报。按照公式 (1.12)，对四个 Q 求平均，得到起点的 V：
 
 $$
-V_\pi(1) = \frac{1}{4}(-28-26-28-26) = -27 \tag{A.5}
+V_\pi(1) = \frac{1}{4}(-28-26-28-26) = -27 \qquad\text{(A.5)}
 $$
 
 **策略改进**选择 Q 最大的动作：
 
 $$
-\mathcal{A}_{\mathrm{greedy}}(s) = \operatorname*{arg\,max}_{a} Q_\pi(s,a) \tag{A.6}
+\mathcal{A}_{\mathrm{greedy}}(s) = \underset{a}{\arg\max} Q_\pi(s,a) \qquad\text{(A.6)}
 $$
 
 本例在并列最大动作间均分概率。起点改为只选择向下或向右，两者各有一半概率；对其他状态也进行同样的改进。
@@ -532,16 +518,16 @@ $$
 
 ### A.4. 价值迭代：直接求最优价值
 
-最优状态价值 $V^*(s)$ 表示从状态 $s$ 出发，在所有策略中能达到的最大期望回报。它满足**贝尔曼最优性方程**：
+最优状态价值 $V^{\ast}(s)$ 表示从状态 $s$ 出发，在所有策略中能达到的最大期望回报。它满足**贝尔曼最优性方程**：
 
 $$
-V^*(s) = \max_a\left[-1 + V^*(f(s,a))\right] \tag{A.7}
+V^{\ast}(s) = \max_a\left[-1 + V^{\ast}(f(s,a))\right] \qquad\text{(A.7)}
 $$
 
 以该方程为依据，每轮直接取最大动作价值，得到**价值迭代**：
 
 $$
-V^{(k+1)}(s) = \max_a\left[-1 + V^{(k)}(f(s,a))\right] \tag{A.8}
+V^{(k+1)}(s) = \max_a\left[-1 + V^{(k)}(f(s,a))\right] \qquad\text{(A.8)}
 $$
 
 公式 (A.1) 按固定策略对动作价值求平均；公式 (A.8) 每轮选择最大的动作价值。两式均用于非终点，终点价值固定为 0。
@@ -628,7 +614,7 @@ python -B -X utf8 examples/bellman_gridworld.py
 给定状态，基线 $b(s_t)$ 与当前动作无关，求导时视为常量。它满足：
 
 $$
-\mathbb{E}_{a_t\sim\pi_\theta(\cdot\mid s_t)}\left[b(s_t)\nabla_\theta\log\pi_\theta(a_t\mid s_t)\right]=0 \tag{B.1}
+\mathbb{E}_{a_t\sim\pi_\theta(\cdot\mid s_t)}\left[b(s_t)\nabla_\theta\log\pi_\theta(a_t\mid s_t)\right]=0 \qquad\text{(B.1)}
 $$
 
 减去满足公式 (B.1) 条件的状态基线，保留策略梯度的期望；合适的基线可降低采样方差。后续回报与优势权重让单次采样的反馈更贴近动作的后续结果或相对表现，有助于提高采样效率。
@@ -637,13 +623,13 @@ $$
 
 ### B.3. 监督学习中的损失加权
 
-监督学习可通过样本或类别权重，表达不同的重要性或错误代价。对固定权重 $w_i$，给损失加权后求梯度，与先求各样本梯度再加权求和等价：
+监督学习可通过样本或类别权重，表达不同的重要性或错误代价。对固定权重 $w_i$ ，给损失加权后求梯度，与先求各样本梯度再加权求和等价：
 
 $$
-\nabla_\theta\left(\sum_i w_i\ell_i(\theta)\right)=\sum_i w_i\nabla_\theta\ell_i(\theta) \tag{B.2}
+\nabla_\theta\left(\sum_i w_i\ell_i(\theta)\right)=\sum_i w_i\nabla_\theta\ell_i(\theta) \qquad\text{(B.2)}
 $$
 
-其中，$\ell_i$ 为第 $i$ 个样本的损失。权重随模型参数变化时，对加权损失求导还需包含权重自身的导数。
+其中， $\ell_i$ 为第 $i$ 个样本的损失。权重随模型参数变化时，对加权损失求导还需包含权重自身的导数。
 
 例如，在类别不平衡时，可根据训练目标给样本较少的类别赋予更大权重；PyTorch 的 CrossEntropyLoss 支持这一用法。不同样本的梯度已存在差异，类别权重仍能表达额外的重要性要求。这类加权通常是在定义新的加权学习目标。
 
